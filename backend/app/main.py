@@ -1,0 +1,89 @@
+"""FastAPI application factory and lifespan."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+
+import redis.asyncio as aioredis
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import get_settings
+from app.api.v1.router import api_v1_router
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle hooks."""
+    # ── Startup ──────────────────────────────────────────────────
+    app.state.redis = aioredis.from_url(
+        settings.redis_url,
+        decode_responses=True,
+    )
+    yield
+    # ── Shutdown ─────────────────────────────────────────────────
+    await app.state.redis.close()
+
+
+app = FastAPI(
+    title=settings.app_name,
+    description="Evidence-grounded meeting assistant with persistent chat-scoped context.",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# ── CORS ─────────────────────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ── API routers ──────────────────────────────────────────────────────
+app.include_router(api_v1_router, prefix="/api/v1")
+
+
+# ── Health endpoints ─────────────────────────────────────────────────
+@app.get("/health", tags=["health"])
+async def health():
+    """Basic liveness check — is the process running?"""
+    return {"status": "ok"}
+
+
+@app.get("/ready", tags=["health"])
+async def ready():
+    """Readiness check — can the app serve traffic?
+
+    Verifies connectivity to PostgreSQL and Redis.
+    """
+    checks: dict[str, str] = {}
+
+    # Check Redis
+    try:
+        redis_client: aioredis.Redis = app.state.redis
+        await redis_client.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+
+    # Check PostgreSQL
+    try:
+        from app.database import engine
+
+        async with engine.connect() as conn:
+            await conn.execute(
+                __import__("sqlalchemy").text("SELECT 1")
+            )
+        checks["postgres"] = "ok"
+    except Exception as exc:
+        checks["postgres"] = f"error: {exc}"
+
+    all_ok = all(v == "ok" for v in checks.values())
+    return {
+        "status": "ok" if all_ok else "degraded",
+        "checks": checks,
+    }
