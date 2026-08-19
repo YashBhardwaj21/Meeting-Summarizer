@@ -43,6 +43,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Middleware & Exception Handlers ──────────────────────────────────
+from app.api.middleware import setup_middleware
+setup_middleware(app)
+
 # ── API routers ──────────────────────────────────────────────────────
 app.include_router(api_v1_router, prefix="/api/v1")
 
