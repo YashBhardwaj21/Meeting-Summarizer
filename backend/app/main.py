@@ -22,8 +22,21 @@ async def lifespan(app: FastAPI):
         settings.redis_url,
         decode_responses=True,
     )
+    
+    # Initialize arq Redis pool for job queuing
+    import arq
+    app.state.arq_pool = await arq.create_pool(
+        arq.connections.RedisSettings.from_dsn(settings.redis_url)
+    )
+    
+    # Ensure storage bucket exists (MinIO/R2)
+    from app.services.storage_service import ensure_bucket_exists
+    ensure_bucket_exists()
+    
     yield
     # ── Shutdown ─────────────────────────────────────────────────
+    if hasattr(app.state, "arq_pool"):
+        await app.state.arq_pool.close()
     await app.state.redis.close()
 
 
