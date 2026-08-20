@@ -40,7 +40,7 @@ class DummyEmbeddingProvider(EmbeddingProvider):
 
 
 @pytest.mark.asyncio
-async def test_full_processing_pipeline(db, tmp_path):
+async def test_full_processing_pipeline(db, test_engine, tmp_path):
     """
     Test the full worker pipeline end-to-end, mocking out the external API providers.
     Requires FFmpeg to be available in the test environment (checked automatically).
@@ -85,22 +85,39 @@ async def test_full_processing_pipeline(db, tmp_path):
     db.add(job)
     await db.commit()
 
-    from tests.conftest import TestingSessionLocal
-    
+    # Create an independent session factory for the worker, pointed at the test DB.
+    # The worker manages its own session lifecycle via `async with`, so no cross-session
+    # entanglement with the test's `db` fixture.
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    worker_session_factory = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
     # 2. Mock external dependencies
-    with patch("app.workers.worker.storage_service.check_object_exists", return_value=True):
-        with patch("app.services.storage_service.generate_presigned_download_url", return_value=str(dummy_wav)):
-            with patch("app.workers.transcription.get_asr_provider", return_value=DummyASRProvider()):
-                with patch("app.workers.transcription.get_embedding_provider", return_value=DummyEmbeddingProvider()):
-                    with patch("app.workers.worker.async_session_factory", side_effect=TestingSessionLocal):
-                        
+    with patch("app.workers.worker.async_session_factory", worker_session_factory):
+        with patch("app.workers.worker.storage_service.check_object_exists", return_value=True):
+            with patch("app.services.storage_service.generate_presigned_download_url", return_value=str(dummy_wav)):
+                with patch("app.workers.transcription.get_asr_provider", return_value=DummyASRProvider()):
+                    with patch("app.workers.transcription.get_embedding_provider", return_value=DummyEmbeddingProvider()):
                         # 3. Execute Worker Job
                         ctx = {"job_try": 1}
                         await process_meeting_job(ctx, str(job.id))
                     
     # 4. Assert Results
-    await db.refresh(job)
-    await db.refresh(meeting)
+    # Capture IDs before expiring — accessing an expired ORM attr would
+    # trigger a synchronous lazy-load, which crashes in async context.
+    job_id = job.id
+    meeting_id = meeting.id
+    
+    # Expire stale identity map entries so the SELECT below reads the worker's
+    # committed state from the database, not the cached pre-worker objects.
+    db.expire_all()
+    
+    result = await db.execute(select(ProcessingJob).where(ProcessingJob.id == job_id))
+    job = result.scalar_one()
+    
+    result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
+    meeting = result.scalar_one()
     
     assert job.status == JobStatus.COMPLETED.value
     assert job.stage == "complete"
