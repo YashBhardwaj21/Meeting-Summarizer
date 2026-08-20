@@ -20,7 +20,7 @@ async def test_create_meeting(client: AsyncClient):
         )
     file_id = presign_resp.json()["file_id"]
     
-    with patch("app.services.storage_service.check_object_exists", return_value=True):
+    with patch("app.services.storage_service.get_object_metadata", return_value={"ContentLength": 1024}):
         await client.post(f"/api/v1/chats/{chat_id}/files/{file_id}/complete")
 
     # 3. Create meeting

@@ -99,17 +99,21 @@ def check_object_exists(key: str) -> bool:
         raise StorageError("Failed to verify object existence.")
 
 
-def get_object_metadata(key: str) -> dict[str, Any]:
+def get_object_metadata(key: str) -> dict[str, Any] | None:
     """Get metadata for an object.
     
     Returns:
         Dict containing ContentLength, ContentType, etc.
+        None if object does not exist.
     """
     s3 = get_boto3_client()
     try:
         response = s3.head_object(Bucket=settings.storage_bucket, Key=key)
         return response
     except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        if error_code == "404":
+            return None
         logger.error(f"Failed to get metadata for {key}: {e}")
         raise StorageError("Failed to retrieve object metadata.")
 

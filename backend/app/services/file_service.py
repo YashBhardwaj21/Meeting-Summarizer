@@ -7,6 +7,7 @@ from typing import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from arq.connections import ArqRedis
 
 from app.config import get_settings
 from app.models.file import File
@@ -62,17 +63,24 @@ async def request_presign(
     content_type: str, 
     size_bytes: int
 ) -> tuple[File, str]:
-    """Validate upload intent, create pending File record, generate upload URL."""
+    """Request a presigned URL for upload."""
     # 1. Verify chat exists and is active
     await chat_service.get_chat(db, chat_id)
     
     # 2. Validate file params
     media_type = _validate_file_parameters(filename, content_type, size_bytes)
     
-    # 3. Create pending file record
+    # 3. Generate file ID and storage key
     file_id = uuid.uuid4()
-    storage_key = f"chats/{chat_id}/files/{file_id}/{filename}"
+    storage_key = f"chats/{chat_id}/files/{file_id}"
     
+    # 4. Generate presigned URL
+    upload_url = storage_service.generate_presigned_upload_url(
+        key=storage_key,
+        content_type=content_type
+    )
+    
+    # 5. Create DB record
     file_record = File(
         id=file_id,
         chat_id=chat_id,
@@ -86,13 +94,7 @@ async def request_presign(
     db.add(file_record)
     await db.flush()
     
-    # 4. Generate presigned URL
-    url = storage_service.generate_presigned_upload_url(
-        key=storage_key,
-        content_type=content_type
-    )
-    
-    return file_record, url
+    return file_record, upload_url
 
 
 async def complete_upload(
@@ -111,16 +113,25 @@ async def complete_upload(
         
     # 2. Check current status
     if file_record.upload_status == UploadStatus.UPLOADED.value:
-        raise ConflictError("Upload is already completed.")
+        return file_record
     if file_record.upload_status == UploadStatus.FAILED.value:
         raise ConflictError("Cannot complete a failed upload.")
         
-    # 3. Verify object exists in storage
-    exists = storage_service.check_object_exists(file_record.storage_key)
-    if not exists:
+    # 3. Verify object exists in storage and size matches
+    metadata = storage_service.get_object_metadata(file_record.storage_key)
+    if not metadata:
         raise ValidationError(
             "File object not found in storage. Upload may not have finished.",
             error_code="OBJECT_NOT_FOUND"
+        )
+        
+    actual_size = metadata.get("ContentLength", 0)
+    if actual_size != file_record.size_bytes:
+        file_record.upload_status = UploadStatus.FAILED.value
+        await db.flush()
+        raise ValidationError(
+            f"Uploaded size ({actual_size}) does not match expected size ({file_record.size_bytes}).",
+            error_code="UPLOADED_SIZE_MISMATCH"
         )
         
     # 4. Mark as completed
@@ -153,14 +164,14 @@ async def get_file(db: AsyncSession, file_id: uuid.UUID) -> File:
     return file_record
 
 
-async def delete_file(db: AsyncSession, file_id: uuid.UUID) -> None:
-    """Mark file as deleted.
-    
-    Storage cleanup happens asynchronously via worker.
-    """
+async def delete_file(db: AsyncSession, arq_pool: ArqRedis, file_id: uuid.UUID) -> None:
+    """Mark file as deleted and enqueue storage cleanup."""
     file_record = await get_file(db, file_id)
     
     file_record.deleted_at = datetime.now(timezone.utc)
-    await db.flush()
+    # Important: commit DB transaction before enqueuing so the worker sees the deleted state if it checks
+    await db.commit()
     
-    # TODO (Step 8/9): Enqueue cleanup job to remove from storage
+    # Enqueue cleanup job to actually remove from storage
+    if file_record.storage_key:
+        await arq_pool.enqueue_job("delete_file_job", storage_key=file_record.storage_key)

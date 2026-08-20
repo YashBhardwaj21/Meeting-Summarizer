@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -82,8 +82,10 @@ async def list_files_endpoint(
 )
 async def delete_file_endpoint(
     file_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a file for deletion. Asynchronously removes it from storage."""
-    await file_service.delete_file(db, file_id)
+    arq_pool = request.app.state.arq_pool
+    await file_service.delete_file(db, arq_pool, file_id)
     return {"status": "accepted"}

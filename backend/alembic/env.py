@@ -21,12 +21,8 @@ settings = get_settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Import all models so Alembic can detect them
-# Models will be added in Step 2
-# from app.models.chat import Chat
-# from app.models.file import File
-# from app.models.meeting import Meeting
-# from app.models.job import ProcessingJob
-from app.models.base import Base
+from app.models import Base, Chat, File, Meeting, ProcessingJob
+
 
 target_metadata = Base.metadata
 

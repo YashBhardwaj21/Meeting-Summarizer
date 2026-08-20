@@ -42,21 +42,6 @@ async def update_job_status(
     return job
 
 
-async def retry_job(db: AsyncSession, job_id: uuid.UUID) -> ProcessingJob:
-    """Increment retry count and optionally requeue (called by worker)."""
-    job = await get_job(db, job_id)
-    job.attempt_count += 1
-    
-    if job.attempt_count >= job.max_attempts:
-        job.status = JobStatus.FAILED.value
-    else:
-        job.status = JobStatus.QUEUED.value
-        # Requeuing logic will be handled by the worker side
-        
-    await db.flush()
-    return job
-
-
 async def cancel_job(db: AsyncSession, job_id: uuid.UUID) -> None:
     """Cancel a queued job."""
     job = await get_job(db, job_id)

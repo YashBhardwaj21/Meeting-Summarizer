@@ -50,3 +50,8 @@ postgres_data/
 
 # Redis data (local dev)
 redis_data/
+
+# Agent Artifacts
+implementation_plan.md
+task.md
+walkthrough.md
