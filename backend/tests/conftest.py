@@ -40,6 +40,7 @@ async def setup_test_db():
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
