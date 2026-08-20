@@ -12,6 +12,9 @@ from arq.connections import RedisSettings
 from app.config import get_settings
 from app.database import async_session_factory
 from app.models.enums import JobStatus, MeetingStatus
+from app.models.meeting import Meeting
+from app.models.file import File
+from sqlalchemy import select
 from app.services import job_service, storage_service
 from app.workers.cleanup import cleanup_chat, delete_file_job
 from app.workers.transcription import run_transcription_pipeline
@@ -60,10 +63,6 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             )
             
             # Fetch related meeting and file
-            from sqlalchemy import select
-            from app.models.meeting import Meeting
-            from app.models.file import File
-            
             meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
             file_record = await db.scalar(select(File).where(File.id == job.file_id))
             
@@ -76,7 +75,10 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             # 3. Validate file exists in storage
             exists = storage_service.check_object_exists(file_record.storage_key)
             if not exists:
-                raise Exception("File object not found in storage.")
+                raise PermanentProcessingError(
+                    "File object not found in storage.",
+                    error_code="MEDIA_NOT_FOUND"
+                )
                 
             # Execute the real pipeline
             metrics = {}
@@ -122,8 +124,12 @@ async def handle_job_failure(db, job_id: uuid.UUID, error: Exception, job_try: i
         await job_service.update_job_status(
             db, job_id, JobStatus.FAILED, error_message=str(error)
         )
-        meeting = await job.awaitable_attrs.meeting
-        meeting.status = MeetingStatus.FAILED.value
+        meeting = await db.scalar(
+            select(Meeting).where(Meeting.id == job.meeting_id)
+        )
+        if meeting is not None:
+            meeting.status = MeetingStatus.FAILED.value
+            
         await db.commit()
         logger.error(f"Job {job_id} failed permanently after {job_try} attempts.")
 
