@@ -22,10 +22,7 @@ from sqlalchemy import text
 
 TEST_DATABASE_URL = settings.database_url + "_test"
 
-engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
-TestingSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
 async def setup_test_db():
     """Create test DB, create tables before tests run and drop them after."""
     # Connect to the default database to create the test DB
@@ -33,33 +30,54 @@ async def setup_test_db():
     async with default_engine.connect() as conn:
         try:
             await conn.execute(text("CREATE DATABASE meeting_summarizer_test"))
-        except Exception as e:
+        except Exception:
             # Database might already exist
             pass
     await default_engine.dispose()
     
-    async with engine.begin() as conn:
+    setup_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    async with setup_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+    await setup_engine.dispose()
+    
     yield
-    async with engine.begin() as conn:
+    
+    teardown_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    async with teardown_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-
+    await teardown_engine.dispose()
 
 
 @pytest_asyncio.fixture
-async def db() -> AsyncGenerator[AsyncSession, None]:
+async def test_engine():
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Fixture that provides a database session for a test."""
+    TestingSessionLocal = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
     async with TestingSessionLocal() as session:
         yield session
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[httpx.AsyncClient, None]:
+async def client(test_engine) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Fixture that provides an async HTTP client for the FastAPI app."""
     # Override the get_db dependency
     from app.database import get_db
+    
+    TestingSessionLocal = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
     
     async def override_get_db():
         async with TestingSessionLocal() as session:
