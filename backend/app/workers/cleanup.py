@@ -86,11 +86,7 @@ async def cleanup_chat(ctx: dict[str, Any], chat_id_hex: str) -> None:
 async def delete_file_job(ctx: dict[str, Any], storage_key: str) -> None:
     """Asynchronously delete a single file object from storage idempotently."""
     logger.info(f"Starting storage deletion for key {storage_key}")
-    try:
-        # storage_service.delete_object handles idempotency automatically for S3
-        # (deleting a non-existent object succeeds)
-        storage_service.delete_object(storage_key)
-        logger.info(f"Successfully deleted object {storage_key}")
-    except Exception as exc:
-        logger.error(f"Error deleting object {storage_key}: {exc}", exc_info=True)
-        raise
+    # storage_service.delete_object handles idempotency automatically for S3
+    # (deleting a non-existent object succeeds)
+    storage_service.delete_object(storage_key)
+    logger.info(f"Successfully deleted object {storage_key}")

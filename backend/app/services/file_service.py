@@ -118,7 +118,14 @@ async def complete_upload(
         raise ConflictError("Cannot complete a failed upload.")
         
     # 3. Verify object exists in storage and size matches
-    metadata = storage_service.get_object_metadata(file_record.storage_key)
+    try:
+        metadata = storage_service.get_object_metadata(file_record.storage_key)
+    except StorageError as e:
+        raise ValidationError(
+            "Storage service is temporarily unavailable. Please try again.",
+            error_code="STORAGE_UNAVAILABLE"
+        )
+        
     if not metadata:
         raise ValidationError(
             "File object not found in storage. Upload may not have finished.",
@@ -164,9 +171,12 @@ async def get_file(db: AsyncSession, file_id: uuid.UUID) -> File:
     return file_record
 
 
-async def delete_file(db: AsyncSession, arq_pool: ArqRedis, file_id: uuid.UUID) -> None:
+async def delete_file(db: AsyncSession, arq_pool: ArqRedis, chat_id: uuid.UUID, file_id: uuid.UUID) -> None:
     """Mark file as deleted and enqueue storage cleanup."""
     file_record = await get_file(db, file_id)
+    
+    if file_record.chat_id != chat_id:
+        raise NotFoundError("File not found or does not belong to this chat.")
     
     file_record.deleted_at = datetime.now(timezone.utc)
     # Important: commit DB transaction before enqueuing so the worker sees the deleted state if it checks

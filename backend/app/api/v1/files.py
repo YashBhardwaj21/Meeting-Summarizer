@@ -76,16 +76,17 @@ async def list_files_endpoint(
 
 
 @router.delete(
-    "/files/{file_id}",
+    "/chats/{chat_id}/files/{file_id}",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Delete a file",
 )
 async def delete_file_endpoint(
+    chat_id: uuid.UUID,
     file_id: uuid.UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Mark a file for deletion. Asynchronously removes it from storage."""
     arq_pool = request.app.state.arq_pool
-    await file_service.delete_file(db, arq_pool, file_id)
+    await file_service.delete_file(db, arq_pool, chat_id, file_id)
     return {"status": "accepted"}
