@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, String, Integer, Text, DateTime
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, UUIDPrimaryKeyMixin, TimestampMixin
@@ -68,6 +68,10 @@ class ProcessingJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     error_message: Mapped[str | None] = mapped_column(
         Text,
+        nullable=True,
+    )
+    processing_metrics: Mapped[dict | None] = mapped_column(
+        JSONB,
         nullable=True,
     )
 

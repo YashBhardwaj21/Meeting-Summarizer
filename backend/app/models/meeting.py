@@ -66,5 +66,15 @@ class Meeting(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         passive_deletes=True,
     )
 
+    # Transcript segments and chunks
+    segments: Mapped[list["TranscriptSegment"]] = relationship(
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    chunks: Mapped[list["TranscriptChunk"]] = relationship(
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
     def __repr__(self) -> str:
         return f"<Meeting id={self.id} status={self.status}>"
