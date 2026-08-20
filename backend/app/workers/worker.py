@@ -4,6 +4,7 @@ import asyncio
 import logging
 import uuid
 from typing import Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from arq.worker import Retry
 from arq.connections import RedisSettings
@@ -13,6 +14,8 @@ from app.database import async_session_factory
 from app.models.enums import JobStatus, MeetingStatus
 from app.services import job_service, storage_service
 from app.workers.cleanup import cleanup_chat, delete_file_job
+from app.workers.transcription import run_transcription_pipeline
+from app.exceptions import RetryableProcessingError, PermanentProcessingError
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -57,53 +60,47 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             )
             
             # Fetch related meeting and file
-            meeting = await job.awaitable_attrs.meeting
-            file_record = await meeting.awaitable_attrs.file
+            from sqlalchemy import select
+            from app.models.meeting import Meeting
+            from app.models.file import File
+            
+            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+            file_record = await db.scalar(select(File).where(File.id == job.file_id))
+            
+            if not meeting or not file_record:
+                raise PermanentProcessingError(
+                    "Meeting or File not found for job.",
+                    error_code="DATA_NOT_FOUND"
+                )
             
             # 3. Validate file exists in storage
             exists = storage_service.check_object_exists(file_record.storage_key)
             if not exists:
                 raise Exception("File object not found in storage.")
                 
-            # 3. Transcription stage (placeholder)
-            if await _check_cancelled(db, job_id):
-                logger.info(f"Job {job_id} cancelled before transcription.")
-                return
-                
-            await job_service.update_job_status(
-                db, job_id, JobStatus.PROCESSING, stage="transcription"
-            )
-            await asyncio.sleep(2)  # Simulate transcription work
+            # Execute the real pipeline
+            metrics = {}
+            await run_transcription_pipeline(db, job, meeting, file_record, metrics)
             
-            # 4. Extraction stage (placeholder)
-            if await _check_cancelled(db, job_id):
-                logger.info(f"Job {job_id} cancelled before extraction.")
-                return
-                
-            await job_service.update_job_status(
-                db, job_id, JobStatus.PROCESSING, stage="extraction"
-            )
-            await asyncio.sleep(2)  # Simulate LLM extraction work
-            
-            # 5. Indexing stage (placeholder)
-            if await _check_cancelled(db, job_id):
-                logger.info(f"Job {job_id} cancelled before indexing.")
-                return
-                
-            await job_service.update_job_status(
-                db, job_id, JobStatus.PROCESSING, stage="indexing"
-            )
-            await asyncio.sleep(1)  # Simulate work
-            
-            # 7. On success: complete job and meeting
+            # On success: update metrics and complete job
+            job.processing_metrics = metrics
             await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete")
             meeting.status = MeetingStatus.READY.value
             await db.commit()
             
             logger.info(f"Successfully processed job {job_id} for meeting {meeting.id}")
             
+        except RetryableProcessingError as exc:
+            logger.warning(f"Transient error processing job {job_id}: {exc}")
+            await db.rollback()
+            await handle_job_failure(db, job_id, exc, job_try)
+        except PermanentProcessingError as exc:
+            logger.error(f"Permanent error processing job {job_id}: {exc}")
+            await db.rollback()
+            # Force attempt count to max_attempts so it fails immediately
+            await handle_job_failure(db, job_id, exc, job.max_attempts)
         except Exception as exc:
-            logger.error(f"Error processing job {job_id}: {exc}", exc_info=True)
+            logger.error(f"Unexpected error processing job {job_id}: {exc}", exc_info=True)
             await db.rollback()
             await handle_job_failure(db, job_id, exc, job_try)
 
