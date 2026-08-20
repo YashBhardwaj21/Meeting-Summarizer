@@ -85,6 +85,35 @@ def generate_presigned_upload_url(
         raise StorageError("Could not generate upload URL.")
 
 
+def generate_presigned_download_url(
+    key: str, 
+    expires_in: int = settings.presign_expiry_seconds
+) -> str:
+    """Generate a presigned URL for downloading objects.
+    
+    Args:
+        key: The object key (path) in the bucket.
+        expires_in: Expiration time in seconds.
+        
+    Returns:
+        The presigned URL string.
+    """
+    s3 = get_boto3_client()
+    try:
+        url = s3.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={
+                "Bucket": settings.storage_bucket,
+                "Key": key,
+            },
+            ExpiresIn=expires_in,
+        )
+        return url
+    except ClientError as e:
+        logger.error(f"Failed to generate presigned download URL for {key}: {e}")
+        raise StorageError("Could not generate download URL.")
+
+
 def check_object_exists(key: str) -> bool:
     """Check if an object exists in storage."""
     s3 = get_boto3_client()
