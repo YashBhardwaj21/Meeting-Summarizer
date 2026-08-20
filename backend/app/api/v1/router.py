@@ -9,8 +9,10 @@ from app.api.v1.chats import router as chats_router
 from app.api.v1.files import router as files_router
 from app.api.v1.meetings import router as meetings_router
 from app.api.v1.jobs import router as jobs_router
+from app.api.v1.transcripts import router as transcripts_router
 
 api_v1_router.include_router(chats_router)
 api_v1_router.include_router(files_router)
 api_v1_router.include_router(meetings_router)
 api_v1_router.include_router(jobs_router)
+api_v1_router.include_router(transcripts_router)
