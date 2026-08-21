@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
 
     # ── Object Storage (MinIO locally, R2 in production) ─────────────
-    storage_endpoint: str = "http://minio:9000"
+    storage_internal_endpoint: str = "http://minio:9000"
+    storage_public_endpoint: str = "http://localhost:9000"
     storage_access_key: str = "minioadmin"
     storage_secret_key: str = "minioadmin"
     storage_bucket: str = "meetings"

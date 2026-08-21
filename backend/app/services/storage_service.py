@@ -14,21 +14,31 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def get_boto3_client() -> Any:
-    """Creates and returns an S3-compatible boto3 client."""
-    # We use signature version s3v4 which is required by R2 and MinIO
-    boto_config = Config(
+def _get_boto_config() -> Config:
+    return Config(
         region_name=settings.storage_region,
         signature_version="s3v4",
         retries={"max_attempts": 3, "mode": "standard"},
     )
-    
+
+def get_boto3_client() -> Any:
+    """Creates and returns an internal S3-compatible boto3 client."""
     return boto3.client(
         "s3",
-        endpoint_url=settings.storage_endpoint,
+        endpoint_url=settings.storage_internal_endpoint,
         aws_access_key_id=settings.storage_access_key,
         aws_secret_access_key=settings.storage_secret_key,
-        config=boto_config,
+        config=_get_boto_config(),
+    )
+
+def get_public_boto3_client() -> Any:
+    """Creates and returns a public S3-compatible boto3 client for presigning URLs."""
+    return boto3.client(
+        "s3",
+        endpoint_url=settings.storage_public_endpoint,
+        aws_access_key_id=settings.storage_access_key,
+        aws_secret_access_key=settings.storage_secret_key,
+        config=_get_boto_config(),
     )
 
 
@@ -68,7 +78,7 @@ def generate_presigned_upload_url(
     Returns:
         The presigned URL string.
     """
-    s3 = get_boto3_client()
+    s3 = get_public_boto3_client()
     try:
         url = s3.generate_presigned_url(
             ClientMethod="put_object",
@@ -98,7 +108,7 @@ def generate_presigned_download_url(
     Returns:
         The presigned URL string.
     """
-    s3 = get_boto3_client()
+    s3 = get_public_boto3_client()
     try:
         url = s3.generate_presigned_url(
             ClientMethod="get_object",

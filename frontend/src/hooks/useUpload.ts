@@ -15,7 +15,7 @@ const MIME_MAP: Record<string, string> = {
   '.mkv': 'video/x-matroska'
 };
 
-export type UploadStatus = 'idle' | 'uploading' | 'confirming' | 'starting' | 'processing' | 'complete' | 'error';
+export type UploadStatus = 'idle' | 'presigning' | 'uploading' | 'confirming' | 'starting' | 'processing' | 'complete' | 'error';
 
 export function useUpload(chatId?: string) {
   const [isUploading, setIsUploading] = useState(false);
@@ -36,7 +36,7 @@ export function useUpload(chatId?: string) {
         throw new Error(`Unsupported file type. Supported: ${SUPPORTED_EXTENSIONS.join(', ')}`);
       }
 
-      const mimeType = file.type || MIME_MAP[ext] || 'application/octet-stream';
+      const mimeType = MIME_MAP[ext] || 'application/octet-stream';
 
       let activeChatId = chatId;
       if (!activeChatId) {
@@ -44,7 +44,7 @@ export function useUpload(chatId?: string) {
         activeChatId = chat.id;
       }
 
-      setStatus('uploading');
+      setStatus('presigning');
       const { file_id, upload_url } = await filesApi.presign(
         activeChatId,
         file.name,
@@ -66,12 +66,22 @@ export function useUpload(chatId?: string) {
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
+          } else if (xhr.status === 403) {
+            reject(new Error('Upload returned HTTP 403 (CORS or Signature mismatch)'));
+          } else if (xhr.status === 400) {
+            reject(new Error('Upload returned HTTP 400'));
+          } else if (xhr.status >= 500) {
+            reject(new Error('Upload returned HTTP 500'));
           } else {
             reject(new Error(`Upload failed with status ${xhr.status}`));
           }
         };
 
-        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.onerror = () => reject(new Error('Unable to reach the upload service. Check the upload URL, MinIO availability, and CORS configuration.'));
+        xhr.onabort = () => reject(new Error('Upload was cancelled.'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out.'));
+        
+        setStatus('uploading');
         xhr.send(file);
       });
 
