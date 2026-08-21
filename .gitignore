@@ -55,3 +55,20 @@ redis_data/
 implementation_plan.md
 task.md
 walkthrough.md
+
+# Node.js / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Vite
+vite.config.js
+vite.config.d.ts
