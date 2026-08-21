@@ -29,6 +29,8 @@ RETRY_DELAYS = [5, 15, 45]  # seconds (exponential backoff)
 async def startup(ctx: dict[str, Any]) -> None:
     """Run on worker start."""
     logger.info("Starting up background worker...")
+    from app.workers.worker import WorkerSettings
+    logger.info(f"Registered functions: {[f.__name__ for f in WorkerSettings.functions]}")
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
@@ -56,14 +58,13 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
                 logger.info(f"Job {job_id} was cancelled. Skipping.")
                 return
 
-            from datetime import datetime, timezone
+            from app.utils.exceptions import ConflictError
             
-            # 2. Update status -> processing, sync attempt count, atomic check
-            job.attempt_count = job_try
-            job.started_at = datetime.now(timezone.utc)
-            await job_service.update_job_status(
-                db, job_id, JobStatus.PROCESSING, stage="validation", expected_status=JobStatus.QUEUED
-            )
+            try:
+                job = await job_service.claim_job(db, job_id, job_try)
+            except ConflictError as e:
+                logger.info(f"Failed to claim job {job_id}: {e}")
+                return
             
             # Fetch related meeting and file
             meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
@@ -104,12 +105,11 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             job.completed_at = datetime.now(timezone.utc)
             meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
             if meeting:
-                meeting.status = "CANCELLED"
+                meeting.status = MeetingStatus.CANCELLED.value
             await db.commit()
             
-            # Clean temp dir
-            from app.workers.transcription import _cleanup_temp_dir
-            _cleanup_temp_dir(job_id)
+            # Cleanup temp dir is now handled by run_transcription_pipeline's finally block
+            # _cleanup_temp_dir(job_id)
             
             raise
         except RetryableProcessingError as exc:
@@ -136,6 +136,9 @@ async def handle_job_failure(db, job_id: uuid.UUID, error: Exception, job_try: i
         
         # Mark as QUEUED for the retry
         await job_service.update_job_status(db, job_id, JobStatus.QUEUED)
+        meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+        if meeting:
+            meeting.status = MeetingStatus.PENDING.value
         await db.commit()
         
         logger.info(f"Job {job_id} failed. Retrying in {delay}s (Attempt {job_try + 1})")
@@ -163,39 +166,52 @@ async def check_stale_jobs(ctx: dict[str, Any]) -> None:
         from sqlalchemy import update
         now = datetime.now(timezone.utc)
         
-        # QUEUE_TIMEOUT: 24 hours
-        queue_timeout = now - timedelta(hours=24)
+        # QUEUE_TIMEOUT: 5 minutes
+        queue_timeout = now - timedelta(minutes=5)
         stmt_queued = (
-            update(ProcessingJob)
+            select(ProcessingJob)
             .where(
                 ProcessingJob.status == JobStatus.QUEUED.value,
                 ProcessingJob.created_at < queue_timeout
             )
-            .values(
-                status=JobStatus.FAILED.value,
-                error_code="QUEUE_TIMEOUT",
-                error_message="Job was in queue for too long",
-                completed_at=now
-            )
         )
-        await db.execute(stmt_queued)
-        
+        result_q = await db.execute(stmt_queued)
+        for job in result_q.scalars().all():
+            job.status = JobStatus.FAILED.value
+            job.error_code = "QUEUE_TIMEOUT"
+            job.error_message = "Job was in queue for too long"
+            job.completed_at = now
+            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+            if meeting:
+                meeting.status = MeetingStatus.FAILED.value
+            try:
+                await ctx["redis"].abort_job(job.id.hex)
+            except Exception:
+                pass
+
         # PROCESSING_TIMEOUT
         processing_timeout = now - timedelta(seconds=settings.processing_job_timeout_seconds)
         stmt_proc = (
-            update(ProcessingJob)
+            select(ProcessingJob)
             .where(
                 ProcessingJob.status == JobStatus.PROCESSING.value,
                 ProcessingJob.started_at < processing_timeout
             )
-            .values(
-                status=JobStatus.FAILED.value,
-                error_code="PROCESSING_TIMEOUT",
-                error_message="Job exceeded processing timeout",
-                completed_at=now
-            )
         )
-        await db.execute(stmt_proc)
+        result_p = await db.execute(stmt_proc)
+        for job in result_p.scalars().all():
+            job.status = JobStatus.FAILED.value
+            job.error_code = "PROCESSING_TIMEOUT"
+            job.error_message = "Job exceeded processing timeout"
+            job.completed_at = now
+            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+            if meeting:
+                meeting.status = MeetingStatus.FAILED.value
+            try:
+                await ctx["redis"].abort_job(job.id.hex)
+            except Exception:
+                pass
+                
         await db.commit()
 
 

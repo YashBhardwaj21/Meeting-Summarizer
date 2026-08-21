@@ -1,4 +1,4 @@
-export type MeetingStatus = 'pending' | 'processing' | 'ready' | 'failed';
+export type MeetingStatus = 'pending' | 'processing' | 'ready' | 'failed' | 'cancelled';
 
 export interface Meeting {
   id: string;

@@ -63,9 +63,20 @@ async def run_transcription_pipeline(
     
     try:
         # Download file to local storage
+        if await _check_cancelled(db, job_id): return
+        await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="downloading")
+        
         from app.services import storage_service
         local_input_path = str(temp_dir / f"input{Path(file_record.filename).suffix}")
-        storage_service.download_object(file_record.storage_key, local_input_path)
+        
+        await asyncio.to_thread(storage_service.download_object, file_record.storage_key, local_input_path)
+        
+        # Validate download
+        local_path_obj = Path(local_input_path)
+        if not local_path_obj.exists():
+            raise PermanentProcessingError("Downloaded file is missing.", error_code="DOWNLOAD_FAILED")
+        if local_path_obj.stat().st_size != file_record.size_bytes:
+            raise PermanentProcessingError(f"Downloaded file size mismatch. Expected {file_record.size_bytes}, got {local_path_obj.stat().st_size}.", error_code="DOWNLOAD_CORRUPT")
         
         # 1. Media Inspection
         if await _check_cancelled(db, job_id): return

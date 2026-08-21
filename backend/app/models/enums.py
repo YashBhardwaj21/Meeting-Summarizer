@@ -33,6 +33,7 @@ class MeetingStatus(str, enum.Enum):
     PROCESSING = "processing"  # Worker is actively processing
     READY = "ready"            # All processing complete, queryable
     FAILED = "failed"          # Processing failed after max retries
+    CANCELLED = "cancelled"    # Job was cancelled
 
 
 class JobStatus(str, enum.Enum):

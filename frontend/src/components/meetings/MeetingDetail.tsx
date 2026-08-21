@@ -53,7 +53,7 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
       try {
         const data = await meetingsApi.get(meetingId);
         setMeeting(data);
-        if (data.status === 'ready' || data.status === 'failed') {
+        if (data.status === 'ready' || data.status === 'failed' || data.status === 'cancelled') {
           return;
         }
         timeoutId = window.setTimeout(pollMeeting, 3000);

@@ -10,6 +10,7 @@ const MIME_MAP: Record<string, string> = {
   '.wav': 'audio/wav',
   '.m4a': 'audio/mp4',
   '.ogg': 'audio/ogg',
+  '.webm': 'audio/webm',
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
   '.mkv': 'video/x-matroska'

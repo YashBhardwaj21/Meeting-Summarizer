@@ -52,3 +52,28 @@ async def cancel_job_endpoint(
     arq_pool = request.app.state.arq_pool
     cancelled_job = await job_service.cancel_job(db, arq_pool, job_id)
     return cancelled_job
+
+@router.post(
+    "/{job_id}/retry",
+    response_model=JobResponse,
+    summary="Retry a failed or cancelled job",
+)
+async def retry_job_endpoint(
+    job_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry a failed or cancelled processing job."""
+    from fastapi import HTTPException
+    
+    arq_pool = request.app.state.arq_pool
+    try:
+        from app.utils.exceptions import ConflictError
+        retried_job = await job_service.retry_job(db, arq_pool, job_id)
+        return retried_job
+    except job_service.NotFoundError:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    except Exception as e:
+        if e.__class__.__name__ == "ConflictError":
+            raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))

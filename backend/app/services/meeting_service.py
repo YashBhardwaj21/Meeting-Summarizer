@@ -66,15 +66,19 @@ async def create_meeting(
     await db.commit()
     
     # 6. Enqueue job to Redis via arq
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
-        await arq_pool.enqueue_job(
+        arq_job = await arq_pool.enqueue_job(
             "process_meeting_job",
             job_id=job_id.hex,
             _job_id=job_id.hex,
         )
+        if not arq_job:
+            raise RuntimeError("ARQ enqueue_job returned None (job not accepted by Redis).")
+        logger.info(f"Successfully enqueued ARQ job. DB Job ID: {job_id} | ARQ Job ID: {arq_job.job_id}")
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Failed to enqueue job {job_id}: {e}")
         
         # Re-open job to mark it as FAILED
@@ -86,6 +90,11 @@ async def create_meeting(
         db.add(job)
         db.add(meeting)
         await db.commit()
+        await db.refresh(job)
+        await db.refresh(meeting)
+        
+        from app.utils.exceptions import InternalServerError
+        raise InternalServerError(f"Failed to enqueue processing job: {str(e)}")
         
     return meeting, job
 
