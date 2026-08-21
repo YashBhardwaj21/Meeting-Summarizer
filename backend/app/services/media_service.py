@@ -37,7 +37,21 @@ async def _run_command(*args: str) -> tuple[str, str]:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await process.communicate()
+    try:
+        stdout, stderr = await process.communicate()
+    except asyncio.CancelledError:
+        logger.warning(f"Command cancelled, terminating subprocess: {' '.join(args)}")
+        try:
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"Command did not terminate, killing subprocess: {' '.join(args)}")
+                process.kill()
+                await process.wait()
+        except Exception as e:
+            logger.error(f"Failed to cleanup subprocess: {e}")
+        raise
     
     if process.returncode != 0:
         cmd_str = " ".join(args)

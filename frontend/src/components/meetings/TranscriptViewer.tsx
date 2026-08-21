@@ -7,7 +7,7 @@ import { EmptyState } from '../ui/EmptyState';
 interface TranscriptViewerProps {
   chatId: string;
   meetingId: string;
-  isReady: boolean;
+  status: string;
 }
 
 function formatTime(seconds: number) {
@@ -20,7 +20,8 @@ function formatTime(seconds: number) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-export function TranscriptViewer({ chatId, meetingId, isReady }: TranscriptViewerProps) {
+export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewerProps) {
+  const isReady = status === 'ready';
   const { segments, loading, error, hasMore, loadMore, total } = useTranscripts(chatId, meetingId, isReady);
 
   if (error) {
@@ -40,6 +41,10 @@ export function TranscriptViewer({ chatId, meetingId, isReady }: TranscriptViewe
   }
 
   if (segments.length === 0) {
+    if (status === 'pending' || status === 'queued' || status === 'processing') {
+      return null;
+    }
+    
     return (
       <EmptyState 
         icon="📝" 

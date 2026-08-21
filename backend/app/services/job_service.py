@@ -28,9 +28,19 @@ async def update_job_status(
     status: JobStatus,
     stage: str | None = None,
     error_message: str | None = None,
+    expected_status: JobStatus | None = None,
 ) -> ProcessingJob:
     """Update job status and progress (called by worker)."""
-    job = await get_job(db, job_id)
+    stmt = select(ProcessingJob).where(ProcessingJob.id == job_id).with_for_update()
+    result = await db.execute(stmt)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise NotFoundError("Job not found.")
+        
+    if expected_status and job.status != expected_status.value:
+        from app.utils.exceptions import ConflictError
+        raise ConflictError(f"Job status is {job.status}, expected {expected_status.value}")
     
     job.status = status.value
     if stage is not None:
@@ -42,9 +52,32 @@ async def update_job_status(
     return job
 
 
-async def cancel_job(db: AsyncSession, job_id: uuid.UUID) -> None:
-    """Cancel a queued job."""
-    job = await get_job(db, job_id)
+async def cancel_job(db: AsyncSession, arq_pool, job_id: uuid.UUID) -> ProcessingJob:
+    """Cancel a queued or processing job."""
+    from datetime import datetime, timezone
+    from app.models.meeting import Meeting
+    
+    stmt = select(ProcessingJob).where(ProcessingJob.id == job_id).with_for_update()
+    result = await db.execute(stmt)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise NotFoundError("Job not found.")
+        
     if job.status in [JobStatus.QUEUED.value, JobStatus.PROCESSING.value]:
         job.status = JobStatus.CANCELLED.value
-        await db.flush()
+        job.completed_at = datetime.now(timezone.utc)
+        
+        meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+        if meeting:
+            meeting.status = "CANCELLED"
+            
+        await db.commit()
+        
+        # Abort the corresponding ARQ job
+        try:
+            await arq_pool.abort_job(job_id.hex)
+        except Exception:
+            pass
+            
+    return job

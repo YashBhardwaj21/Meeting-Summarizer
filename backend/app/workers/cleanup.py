@@ -27,6 +27,7 @@ async def cleanup_chat(ctx: dict[str, Any], chat_id_hex: str) -> None:
             # 1. Cancel any active jobs for this chat
             # (We find jobs via the meeting -> chat relationship, or just files -> chat)
             # Since files belong to chat, and jobs belong to files:
+            from app.models.meeting import Meeting
             jobs_stmt = (
                 select(ProcessingJob)
                 .join(File, ProcessingJob.file_id == File.id)
@@ -38,7 +39,22 @@ async def cleanup_chat(ctx: dict[str, Any], chat_id_hex: str) -> None:
             result = await db.execute(jobs_stmt)
             active_jobs = result.scalars().all()
             for job in active_jobs:
+                # Abort ARQ job
+                try:
+                    await ctx["redis"].abort_job(job.id.hex)
+                except Exception as e:
+                    logger.warning(f"Failed to abort ARQ job {job.id.hex}: {e}")
+                    
                 job.status = JobStatus.CANCELLED.value
+                job.completed_at = datetime.now(timezone.utc)
+                
+                # Mark meeting as cancelled
+                meeting_stmt = select(Meeting).where(Meeting.id == job.meeting_id)
+                meeting_result = await db.execute(meeting_stmt)
+                meeting = meeting_result.scalar_one_or_none()
+                if meeting:
+                    meeting.status = "CANCELLED"
+                    
                 logger.info(f"Cancelled job {job.id} for chat {chat_id}")
             
             # 2. Collect all storage keys
@@ -71,6 +87,22 @@ async def cleanup_chat(ctx: dict[str, Any], chat_id_hex: str) -> None:
                 # Also soft-delete children for consistency
                 for f in files:
                     f.deleted_at = chat.deleted_at
+                    
+                # Soft delete meetings and jobs
+                from app.models.meeting import Meeting
+                all_meetings_stmt = select(Meeting).where(Meeting.chat_id == chat_id)
+                all_meetings = (await db.execute(all_meetings_stmt)).scalars().all()
+                for m in all_meetings:
+                    m.deleted_at = chat.deleted_at
+                    
+                all_jobs_stmt = (
+                    select(ProcessingJob)
+                    .join(File, ProcessingJob.file_id == File.id)
+                    .where(File.chat_id == chat_id)
+                )
+                all_jobs = (await db.execute(all_jobs_stmt)).scalars().all()
+                for j in all_jobs:
+                    j.deleted_at = chat.deleted_at
                     
                 await db.commit()
                 logger.info(f"Successfully cleaned up chat {chat_id}")

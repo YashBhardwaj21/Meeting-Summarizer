@@ -107,7 +107,7 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
       <TranscriptViewer 
         chatId={meeting.chat_id}
         meetingId={meeting.id} 
-        isReady={isReady} 
+        status={meeting.status} 
       />
     </div>
   );

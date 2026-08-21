@@ -62,19 +62,18 @@ async def run_transcription_pipeline(
     temp_dir.mkdir(parents=True, exist_ok=True)
     
     try:
-        # Download file to local storage or just use the presigned URL directly if supported
-        # For this prototype, we assume file_record.storage_key is accessible locally for ffmpeg
-        # In a real system we'd download it. We will just pass the URL/path here.
-        # Since we use MinIO, we would generate a presigned GET url.
+        # Download file to local storage
         from app.services import storage_service
-        input_url = storage_service.generate_presigned_download_url(file_record.storage_key)
+        local_input_path = str(temp_dir / f"input{Path(file_record.filename).suffix}")
+        storage_service.download_object(file_record.storage_key, local_input_path)
         
         # 1. Media Inspection
         if await _check_cancelled(db, job_id): return
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="media_inspection")
         
         t0 = time.monotonic()
-        media_metadata = await inspect_media(input_url)
+        media_metadata = await inspect_media(local_input_path)
+        metrics["media_inspection_time_ms"] = int((time.monotonic() - t0) * 1000)
         metrics["media_duration_seconds"] = media_metadata.duration_seconds
         metrics["media_size_bytes"] = media_metadata.size_bytes
         
@@ -84,7 +83,7 @@ async def run_transcription_pipeline(
         
         t1 = time.monotonic()
         flac_path = str(temp_dir / "normalized.flac")
-        await extract_audio(input_url, flac_path)
+        await extract_audio(local_input_path, flac_path)
         metrics["audio_extraction_time_ms"] = int((time.monotonic() - t1) * 1000)
         
         # 3. Transcription
@@ -107,7 +106,7 @@ async def run_transcription_pipeline(
             overlap=settings.asr_chunk_overlap_seconds,
             concurrency=settings.asr_concurrency
         )
-        metrics["asr"]["wall_time_ms"] = int((time.monotonic() - t2) * 1000)
+        metrics["asr_wall_time_ms"] = int((time.monotonic() - t2) * 1000)
         
         # 4. Diarization
         if await _check_cancelled(db, job_id): return
@@ -161,7 +160,7 @@ async def run_transcription_pipeline(
             provider=embedding_provider,
             batch_size=settings.embedding_batch_size
         )
-        metrics["embedding"]["wall_time_ms"] = int((time.monotonic() - t5) * 1000)
+        metrics["embedding_wall_time_ms"] = int((time.monotonic() - t5) * 1000)
         
         # 8. Persist Index (DURABLE CHECKPOINT)
         if await _check_cancelled(db, job_id): return

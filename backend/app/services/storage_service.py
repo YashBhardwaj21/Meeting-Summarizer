@@ -157,6 +157,16 @@ def get_object_metadata(key: str) -> dict[str, Any] | None:
         raise StorageError("Failed to retrieve object metadata.")
 
 
+def download_object(key: str, local_path: str) -> None:
+    """Download an object from storage to a local file."""
+    s3 = get_boto3_client()
+    try:
+        s3.download_file(settings.storage_bucket, key, local_path)
+    except ClientError as e:
+        logger.error(f"Failed to download object {key} to {local_path}: {e}")
+        raise StorageError(f"Failed to download object: {e}")
+
+
 def delete_object(key: str) -> None:
     """Delete a single object from storage."""
     s3 = get_boto3_client()

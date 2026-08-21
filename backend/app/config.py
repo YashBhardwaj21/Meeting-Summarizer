@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     # ── Worker / Resources ───────────────────────────────────────────
     media_temp_dir: str = "/tmp/meeting-summarizer"
     processing_max_attempts: int = 3
+    processing_job_timeout_seconds: int = 10800
     max_media_duration_seconds: int = 7200       # 2 hours
     max_temp_storage_bytes: int = 5_368_709_120  # 5 GB
 

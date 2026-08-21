@@ -63,14 +63,30 @@ async def create_meeting(
         status=JobStatus.QUEUED.value
     )
     db.add(job)
-    await db.flush()
+    await db.commit()
     
     # 6. Enqueue job to Redis via arq
-    await arq_pool.enqueue_job(
-        "process_meeting_job",
-        job_id=job_id.hex,
-    )
-    
+    try:
+        await arq_pool.enqueue_job(
+            "process_meeting_job",
+            job_id=job_id.hex,
+            _job_id=job_id.hex,
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to enqueue job {job_id}: {e}")
+        
+        # Re-open job to mark it as FAILED
+        job.status = JobStatus.FAILED.value
+        job.error_code = "QUEUE_ENQUEUE_FAILED"
+        job.error_message = str(e)
+        meeting.status = MeetingStatus.FAILED.value
+        
+        db.add(job)
+        db.add(meeting)
+        await db.commit()
+        
     return meeting, job
 
 

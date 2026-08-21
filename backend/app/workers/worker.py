@@ -56,10 +56,13 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
                 logger.info(f"Job {job_id} was cancelled. Skipping.")
                 return
 
-            # 2. Update status -> processing, sync attempt count
+            from datetime import datetime, timezone
+            
+            # 2. Update status -> processing, sync attempt count, atomic check
             job.attempt_count = job_try
+            job.started_at = datetime.now(timezone.utc)
             await job_service.update_job_status(
-                db, job_id, JobStatus.PROCESSING, stage="validation"
+                db, job_id, JobStatus.PROCESSING, stage="validation", expected_status=JobStatus.QUEUED
             )
             
             # Fetch related meeting and file
@@ -86,12 +89,29 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             
             # On success: update metrics and complete job
             job.processing_metrics = metrics
+            job.completed_at = datetime.now(timezone.utc)
             await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete")
             meeting.status = MeetingStatus.READY.value
             await db.commit()
             
             logger.info(f"Successfully processed job {job_id} for meeting {meeting.id}")
             
+        except asyncio.CancelledError:
+            logger.warning(f"Job {job_id} cancelled during processing.")
+            from datetime import datetime, timezone
+            job = await job_service.get_job(db, job_id)
+            job.status = JobStatus.CANCELLED.value
+            job.completed_at = datetime.now(timezone.utc)
+            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+            if meeting:
+                meeting.status = "CANCELLED"
+            await db.commit()
+            
+            # Clean temp dir
+            from app.workers.transcription import _cleanup_temp_dir
+            _cleanup_temp_dir(job_id)
+            
+            raise
         except RetryableProcessingError as exc:
             logger.warning(f"Transient error processing job {job_id}: {exc}")
             await db.rollback()
@@ -121,6 +141,8 @@ async def handle_job_failure(db, job_id: uuid.UUID, error: Exception, job_try: i
         logger.info(f"Job {job_id} failed. Retrying in {delay}s (Attempt {job_try + 1})")
         raise Retry(defer=delay)
     else:
+        from datetime import datetime, timezone
+        job.completed_at = datetime.now(timezone.utc)
         await job_service.update_job_status(
             db, job_id, JobStatus.FAILED, error_message=str(error)
         )
@@ -134,10 +156,57 @@ async def handle_job_failure(db, job_id: uuid.UUID, error: Exception, job_try: i
         logger.error(f"Job {job_id} failed permanently after {job_try} attempts.")
 
 
+async def check_stale_jobs(ctx: dict[str, Any]) -> None:
+    """Cron task to fail stale jobs."""
+    async with async_session_factory() as db:
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import update
+        now = datetime.now(timezone.utc)
+        
+        # QUEUE_TIMEOUT: 24 hours
+        queue_timeout = now - timedelta(hours=24)
+        stmt_queued = (
+            update(ProcessingJob)
+            .where(
+                ProcessingJob.status == JobStatus.QUEUED.value,
+                ProcessingJob.created_at < queue_timeout
+            )
+            .values(
+                status=JobStatus.FAILED.value,
+                error_code="QUEUE_TIMEOUT",
+                error_message="Job was in queue for too long",
+                completed_at=now
+            )
+        )
+        await db.execute(stmt_queued)
+        
+        # PROCESSING_TIMEOUT
+        processing_timeout = now - timedelta(seconds=settings.processing_job_timeout_seconds)
+        stmt_proc = (
+            update(ProcessingJob)
+            .where(
+                ProcessingJob.status == JobStatus.PROCESSING.value,
+                ProcessingJob.started_at < processing_timeout
+            )
+            .values(
+                status=JobStatus.FAILED.value,
+                error_code="PROCESSING_TIMEOUT",
+                error_message="Job exceeded processing timeout",
+                completed_at=now
+            )
+        )
+        await db.execute(stmt_proc)
+        await db.commit()
+
+
 # arq worker configuration
 class WorkerSettings:
     functions = [process_meeting_job, cleanup_chat, delete_file_job]
+    from arq.cron import cron
+    cron_jobs = [cron(check_stale_jobs, minute={0, 15, 30, 45})]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 10
+    allow_abort_jobs = True
+    job_timeout = settings.processing_job_timeout_seconds

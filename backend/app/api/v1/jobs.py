@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -23,3 +23,32 @@ async def get_job_endpoint(
 ):
     """Retrieve the real-time processing status and stage of a background job."""
     return await job_service.get_job(db, job_id)
+
+@router.post(
+    "/{job_id}/cancel",
+    response_model=JobResponse,
+    summary="Cancel a running job",
+)
+async def cancel_job_endpoint(
+    job_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel an active or queued processing job."""
+    from app.models.enums import JobStatus
+    from fastapi import HTTPException
+    
+    # 1. Fetch job to check state
+    try:
+        job = await job_service.get_job(db, job_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Job not found.")
+        
+    # 2. Prevent cancellation if already finished
+    if job.status in [JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value]:
+        raise HTTPException(status_code=409, detail=f"Job is already {job.status}.")
+        
+    # 3. Perform atomic cancellation
+    arq_pool = request.app.state.arq_pool
+    cancelled_job = await job_service.cancel_job(db, arq_pool, job_id)
+    return cancelled_job

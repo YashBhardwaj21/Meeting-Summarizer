@@ -25,8 +25,8 @@ export function useJobPolling(jobId: string | undefined, onComplete?: () => void
           return; // Stop polling
         }
 
-        // Poll again in 3 seconds
-        timeoutId = window.setTimeout(poll, 3000);
+        // Poll again in 1.5 seconds
+        timeoutId = window.setTimeout(poll, 1500);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch job status'));
         // If it's a 404 or something, we might want to stop, but for now we'll just stop

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { NavLink, useParams } from 'react-router';
+import { NavLink, useParams, useNavigate } from 'react-router';
 import { useChats } from '../../hooks/useChats';
 import { useStorage } from '../../hooks/useStorage';
 import './layout.css';
@@ -7,7 +7,29 @@ import './layout.css';
 export function Sidebar() {
   const { chats, loading, refetch } = useChats();
   const { chatId } = useParams();
+  const navigate = useNavigate();
   const { usedBytes, quotaBytes, usedPercent, loading: storageLoading } = useStorage(chatId);
+
+  const handleDelete = async (e: React.MouseEvent, id: string, title: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (window.confirm(`Are you sure you want to delete workspace "${title || 'Untitled Workspace'}"?\n\nThis will permanently cancel running jobs and delete all associated meetings, transcripts, and media files.`)) {
+      try {
+        const { chatsApi } = await import('../../api/chats');
+        await chatsApi.delete(id);
+        
+        // Remove from list and navigate away if active
+        refetch();
+        if (id === chatId) {
+          navigate('/');
+        }
+      } catch (error) {
+        console.error('Failed to delete chat:', error);
+        alert('Failed to delete workspace.');
+      }
+    }
+  };
 
   useEffect(() => {
     if (chatId) {
@@ -43,10 +65,20 @@ export function Sidebar() {
                 <NavLink 
                   to={`/chats/${chat.id}`} 
                   className={({ isActive }) => `chat-item ${isActive ? 'active' : ''}`}
-                  style={{ display: 'block' }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
-                  <div className="chat-name">{chat.title || 'Untitled Workspace'}</div>
-                  <div className="chat-meta">{chat.meeting_count} meetings {chat.meeting_count > 0 ? <span>&bull;</span> : ''}</div>
+                  <div>
+                    <div className="chat-name">{chat.title || 'Untitled Workspace'}</div>
+                    <div className="chat-meta">{chat.meeting_count} meetings {chat.meeting_count > 0 ? <span>&bull;</span> : ''}</div>
+                  </div>
+                  <button 
+                    onClick={(e) => handleDelete(e, chat.id, chat.title)}
+                    className="delete-btn"
+                    title="Delete workspace"
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                  >
+                    ×
+                  </button>
                 </NavLink>
               </li>
             ))}
