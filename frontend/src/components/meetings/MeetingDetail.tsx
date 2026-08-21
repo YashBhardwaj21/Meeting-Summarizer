@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'react-router';
 import { meetingsApi } from '../../api/meetings';
 import { useJobPolling } from '../../hooks/useJobPolling';
@@ -19,7 +19,7 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchMeeting = async () => {
+  const fetchMeeting = useCallback(async () => {
     try {
       setLoading(true);
       const data = await meetingsApi.get(meetingId);
@@ -29,20 +29,43 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [meetingId]);
 
   useEffect(() => {
     fetchMeeting();
-  }, [meetingId]);
+  }, [fetchMeeting]);
 
-  // Polling Job if we have a Job ID and the meeting is not ready
+  // Polling Job if we have a Job ID and the meeting is not ready or failed
   const { job } = useJobPolling(
     (meeting?.status !== 'ready' && meeting?.status !== 'failed') ? stateJobId : undefined,
-    () => {
-      // On complete, re-fetch the meeting to get updated duration/status
-      fetchMeeting();
-    }
+    fetchMeeting
   );
+
+  // Fallback meeting polling when no jobId exists and meeting is not terminal
+  useEffect(() => {
+    if (stateJobId) return; // Mutually exclusive with job polling
+    if (!meeting) return;
+    
+    if (meeting.status === 'ready' || meeting.status === 'failed') return;
+    
+    let timeoutId: number;
+    const pollMeeting = async () => {
+      try {
+        const data = await meetingsApi.get(meetingId);
+        setMeeting(data);
+        if (data.status === 'ready' || data.status === 'failed') {
+          return;
+        }
+        timeoutId = window.setTimeout(pollMeeting, 3000);
+      } catch (err) {
+        timeoutId = window.setTimeout(pollMeeting, 5000);
+      }
+    };
+    
+    timeoutId = window.setTimeout(pollMeeting, 3000);
+    
+    return () => window.clearTimeout(timeoutId);
+  }, [meeting?.status, meetingId, stateJobId]);
 
   if (loading && !meeting) {
     return <div className="text-muted">Loading meeting details...</div>;

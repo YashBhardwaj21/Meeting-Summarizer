@@ -12,7 +12,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<RootRoute />} />
           <Route path="/chats/:chatId" element={<ChatRoute />} />
-          <Route path="/meetings/:meetingId" element={<MeetingRoute />} />
+          <Route path="/chats/:chatId/meetings/:meetingId" element={<MeetingRoute />} />
         </Route>
       </Routes>
     </BrowserRouter>

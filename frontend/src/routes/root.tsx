@@ -1,41 +1,16 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router';
-import { useChats } from '../hooks/useChats';
+import React from 'react';
+import { MeetingComposer } from '../components/composer/MeetingComposer';
 import '../components/layout/layout.css';
 
 export function RootRoute() {
-  const { createChat } = useChats();
-  const navigate = useNavigate();
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleNewChat = async () => {
-    try {
-      setIsCreating(true);
-      setError(null);
-      const newChat = await createChat();
-      navigate(`/chats/${newChat.id}`);
-    } catch (err) {
-      setError('Failed to create workspace. Please try again.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center' }}>
-        <h2 style={{ marginBottom: '1rem', color: 'var(--color-text-primary)' }}>Start a meeting workspace</h2>
-        <button 
-          className="btn-new-chat" 
-          onClick={handleNewChat} 
-          disabled={isCreating}
-          style={{ width: 'auto', padding: '12px 24px', fontSize: '1.1rem' }}
-        >
-          {isCreating ? 'Creating...' : '+ New Chat'}
-        </button>
-        {error && <div className="upload-error" style={{ marginTop: '1rem' }}>{error}</div>}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+      <div style={{ width: '100%', maxWidth: '800px', textAlign: 'center', marginBottom: '24px' }}>
+        <h2 style={{ marginBottom: '8px', color: 'var(--color-text-primary)' }}>Start a meeting workspace</h2>
+        <p style={{ color: 'var(--color-text-muted)' }}>Upload an audio or video file to generate a transcript and summary.</p>
       </div>
+      <MeetingComposer />
     </div>
   );
 }
+

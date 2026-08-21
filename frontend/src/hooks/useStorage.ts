@@ -9,7 +9,14 @@ export function useStorage(chatId: string | undefined) {
   const [error, setError] = useState<Error | null>(null);
 
   const fetchStorage = useCallback(async () => {
-    if (!chatId) return;
+    if (!chatId) {
+      setUsedBytes(0);
+      setQuotaBytes(0);
+      setUsedPercent(0);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);

@@ -35,8 +35,8 @@ export function useTranscripts(chatId: string | undefined, meetingId: string | u
         setSegments(data.items);
       }
       
-      setHasMore(currentOffset + limit < data.total);
-      offsetRef.current = currentOffset + limit;
+      setHasMore(currentOffset + data.items.length < data.total);
+      offsetRef.current = currentOffset + data.items.length;
       
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch transcript'));

@@ -3,7 +3,6 @@ import { useTranscripts } from '../../hooks/useTranscripts';
 
 import { SkeletonText } from '../ui/Skeleton';
 import { EmptyState } from '../ui/EmptyState';
-import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 interface TranscriptViewerProps {
   chatId: string;
@@ -64,7 +63,7 @@ export function TranscriptViewer({ chatId, meetingId, isReady }: TranscriptViewe
                 {formatTime(segment.start_time)}
               </div>
               <div className="segment-speaker" style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-primary-hover)' }}>
-                {segment.speaker || 'SPEAKER_00'}
+                {segment.speaker || 'Speaker'}
               </div>
             </div>
             <div className="segment-text" style={{ flex: 1, backgroundColor: 'var(--color-surface)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: 'var(--border)' }}>

@@ -1,36 +1,19 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate, useParams } from 'react-router';
+import React, { useEffect } from 'react';
+import { NavLink, useParams } from 'react-router';
 import { useChats } from '../../hooks/useChats';
 import { useStorage } from '../../hooks/useStorage';
 import './layout.css';
 
 export function Sidebar() {
-  const { chats, loading, createChat } = useChats();
-  const navigate = useNavigate();
+  const { chats, loading, refetch } = useChats();
   const { chatId } = useParams();
   const { usedBytes, quotaBytes, usedPercent, loading: storageLoading } = useStorage(chatId);
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  const handleNewChat = async () => {
-    try {
-      setIsCreating(true);
-      setError(null);
-      const newChat = await createChat();
-      navigate(`/chats/${newChat.id}`);
-    } catch (err) {
-      setError('Failed to create workspace.');
-    } finally {
-      setIsCreating(false);
+  useEffect(() => {
+    if (chatId) {
+      refetch();
     }
-  };
-
-  const filteredChats = chats.filter(chat => 
-    chat.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (searchQuery === '' && !chat.title) ||
-    (!chat.title && 'untitled workspace'.includes(searchQuery.toLowerCase()))
-  );
+  }, [chatId, refetch]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -45,20 +28,6 @@ export function Sidebar() {
       <div className="sidebar-header">
         <h1 className="logo">[M] MeetSum</h1>
       </div>
-      <div className="sidebar-actions">
-        <button className="btn-new-chat" onClick={handleNewChat} disabled={isCreating}>
-          {isCreating ? 'Creating...' : '+ New Chat'}
-        </button>
-        {error && <div style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: '4px', textAlign: 'center' }}>{error}</div>}
-      </div>
-      <div className="sidebar-search">
-        <input 
-          type="text" 
-          placeholder="Search chats..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </div>
       <div className="sidebar-nav">
         <h2 className="nav-heading">CHATS</h2>
         {loading ? (
@@ -69,7 +38,7 @@ export function Sidebar() {
           </div>
         ) : (
           <ul className="chat-list">
-            {filteredChats.map(chat => (
+            {chats.map(chat => (
               <li key={chat.id}>
                 <NavLink 
                   to={`/chats/${chat.id}`} 
@@ -77,11 +46,11 @@ export function Sidebar() {
                   style={{ display: 'block' }}
                 >
                   <div className="chat-name">{chat.title || 'Untitled Workspace'}</div>
-                  <div className="chat-meta">{chat.meeting_count} meetings {chat.meeting_count > 0 ? '&bull;' : ''}</div>
+                  <div className="chat-meta">{chat.meeting_count} meetings {chat.meeting_count > 0 ? <span>&bull;</span> : ''}</div>
                 </NavLink>
               </li>
             ))}
-            {filteredChats.length === 0 && (
+            {chats.length === 0 && (
               <li className="text-muted" style={{ padding: '12px 16px', fontSize: '0.875rem' }}>No chats found.</li>
             )}
           </ul>
@@ -91,13 +60,13 @@ export function Sidebar() {
         <div className="storage-widget">
           <div className="storage-header">
             <span>Storage</span>
-            <span>{storageLoading ? '--' : `${usedPercent}%`}</span>
+            <span>{!chatId ? '—' : storageLoading ? '--' : `${usedPercent}%`}</span>
           </div>
           <div className="storage-text">
-            {storageLoading ? 'Loading...' : `${formatBytes(usedBytes)} / ${formatBytes(quotaBytes)}`}
+            {!chatId ? '—' : storageLoading ? 'Loading...' : `${formatBytes(usedBytes)} / ${formatBytes(quotaBytes)}`}
           </div>
           <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${storageLoading ? 0 : usedPercent}%` }}></div>
+            <div className="progress-fill" style={{ width: `${!chatId || storageLoading ? 0 : usedPercent}%` }}></div>
           </div>
         </div>
         <div className="profile-widget">
