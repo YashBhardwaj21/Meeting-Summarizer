@@ -26,8 +26,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
       errorData = null;
     }
     
-    // Attempt to extract detail message from FastAPI structure
-    const message = errorData?.detail || response.statusText || 'Unknown API Error';
+    // Attempt to extract detail message from FastAPI or custom structure
+    const message = errorData?.error?.message || errorData?.detail || response.statusText || 'Unknown API Error';
     throw new ApiError(response.status, message, errorData);
   }
 

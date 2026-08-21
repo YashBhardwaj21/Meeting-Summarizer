@@ -58,6 +58,8 @@ async def update_job_status(
     job.status = status.value
     if stage is not None:
         job.stage = stage
+        import logging
+        logging.getLogger(__name__).info(f"[WORKER] stage={stage}")
     if error_code is not None:
         job.error_code = error_code
     if error_message is not None:

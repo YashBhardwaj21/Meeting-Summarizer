@@ -1,6 +1,7 @@
 """Meeting service — handles creation of meetings and job enqueuing."""
 
 import uuid
+import logging
 
 from arq.connections import ArqRedis
 from sqlalchemy import select
@@ -12,6 +13,8 @@ from app.models.enums import MeetingStatus, UploadStatus, JobStatus
 from app.services import chat_service
 from app.services import file_service
 from app.utils.exceptions import ConflictError
+
+logger = logging.getLogger(__name__)
 
 
 async def create_meeting(
@@ -38,10 +41,26 @@ async def create_meeting(
     existing_meeting = result.scalar_one_or_none()
     
     if existing_meeting:
-        # Fetch the associated job
         job_stmt = select(ProcessingJob).where(ProcessingJob.meeting_id == existing_meeting.id)
         job_result = await db.execute(job_stmt)
         existing_job = job_result.scalar_one()
+        
+        if existing_job.status == JobStatus.QUEUED.value:
+            from arq.jobs import Job as ArqJob, JobStatus as ArqJobStatus
+            arq_job_instance = ArqJob(existing_job.id.hex, arq_pool)
+            status = await arq_job_instance.status()
+            
+            if status == ArqJobStatus.not_found:
+                try:
+                    await arq_pool.enqueue_job(
+                        "process_meeting_job",
+                        job_id_hex=existing_job.id.hex,
+                        _job_id=existing_job.id.hex,
+                    )
+                    logger.info(f"[API] re-enqueued orphaned job {existing_job.id.hex}")
+                except Exception as e:
+                    logger.error(f"Failed to re-enqueue orphaned job {existing_job.id.hex}: {e}")
+                    
         return existing_meeting, existing_job
 
     # 4. Create new Meeting
@@ -63,19 +82,17 @@ async def create_meeting(
         status=JobStatus.QUEUED.value
     )
     db.add(job)
+    logger.info(f"[API] created job {job_id}")
     await db.commit()
     
     # 6. Enqueue job to Redis via arq
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
         arq_job = await arq_pool.enqueue_job(
             "process_meeting_job",
-            job_id=job_id.hex,
+            job_id_hex=job_id.hex,
             _job_id=job_id.hex,
         )
-        logger.info(f"Successfully enqueued ARQ job. DB Job ID: {job_id} | ARQ Job accepted (new): {arq_job is not None}")
+        logger.info(f"[API] enqueue accepted/duplicate {job_id.hex}")
     except Exception as e:
         logger.error(f"Failed to enqueue job {job_id}: {e}")
         

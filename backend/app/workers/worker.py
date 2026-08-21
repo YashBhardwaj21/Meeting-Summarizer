@@ -48,23 +48,20 @@ async def _check_cancelled(db: AsyncSession, job_id: uuid.UUID) -> bool:
 
 async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
     """Main job handler for processing an uploaded meeting file."""
-    logger.info(f"Worker received job {job_id_hex}")
+    logger.info(f"[WORKER] received {job_id_hex}")
     job_id = uuid.UUID(job_id_hex)
     job_try = ctx.get("job_try", 1)
     
     async with async_session_factory() as db:
         try:
-            # 1. Fetch job
-            job = await job_service.get_job(db, job_id)
-            
-            if job.status == JobStatus.CANCELLED.value:
-                logger.info(f"Job {job_id} was cancelled. Skipping.")
-                return
-
-            from app.utils.exceptions import ConflictError
+            from app.utils.exceptions import ConflictError, NotFoundError
             
             try:
                 job = await job_service.claim_job(db, job_id, job_try)
+                logger.info(f"[WORKER] claimed {job_id}")
+            except NotFoundError:
+                logger.info(f"Job {job_id} not found. Skipping.")
+                return
             except ConflictError as e:
                 logger.info(f"Failed to claim job {job_id}: {e}")
                 return
@@ -95,7 +92,7 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete", processing_metrics=metrics)
             await db.commit()
             
-            logger.info(f"Successfully processed job {job_id} for meeting {meeting.id}")
+            logger.info(f"[WORKER] COMPLETED {job_id}")
             
         except asyncio.CancelledError:
             logger.warning(f"Job {job_id} cancelled during processing.")
