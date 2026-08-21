@@ -1,0 +1,215 @@
+/* Metrics */
+.metrics-container {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.metric-card {
+  flex: 1;
+  background-color: var(--color-surface);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  box-shadow: 2px 2px 0 var(--color-border);
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Meeting List & Card */
+.meeting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.meeting-card {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-surface);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  gap: 16px;
+  transition: box-shadow 0.1s, transform 0.1s;
+}
+
+.meeting-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.meeting-icon {
+  width: 40px;
+  height: 40px;
+  background-color: var(--color-bg);
+  border: var(--border);
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.meeting-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.meeting-title {
+  font-size: 1rem;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meeting-meta {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.meeting-status {
+  flex-shrink: 0;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.status-ready { background-color: var(--color-green); }
+.status-processing { background-color: var(--color-blue); }
+.status-failed { background-color: var(--color-red); }
+.status-pending { background-color: var(--color-bg); }
+
+.meeting-action {
+  flex-shrink: 0;
+}
+
+.btn-view {
+  font-weight: 600;
+  color: var(--color-text);
+  padding: 8px;
+}
+.btn-view:hover {
+  color: var(--color-primary-hover);
+}
+
+/* Meeting Detail */
+.meeting-detail-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.meeting-detail-header {
+  margin-bottom: 32px;
+}
+
+.meeting-detail-header h1 {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.meeting-meta-large {
+  display: flex;
+  gap: 12px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* Job Status */
+.job-status-card {
+  background-color: var(--color-surface);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: 4px 4px 0 var(--color-border);
+}
+
+.job-status-card.failed {
+  border-color: var(--color-red);
+  box-shadow: 4px 4px 0 var(--color-red);
+}
+
+.job-status-card.complete {
+  border-color: var(--color-green);
+  box-shadow: 4px 4px 0 var(--color-green);
+}
+
+.job-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.job-status-header h3 {
+  margin: 0;
+}
+
+.job-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background-color: var(--color-bg);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.job-error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-red);
+}
+
+.job-complete {
+  background-color: #ecfccb;
+  color: #3f6212;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-green);
+  font-weight: 600;
+}
+
+/* Spinner */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-top-color: var(--color-text);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.transcript-placeholder {
+  background-color: var(--color-surface);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  padding: 48px;
+  text-align: center;
+  box-shadow: 4px 4px 0 var(--color-border);
+}
