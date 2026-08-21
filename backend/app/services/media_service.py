@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import get_settings
-from app.exceptions import PermanentProcessingError
+from app.utils.exceptions import PermanentProcessingError
 
 logger = logging.getLogger(__name__)
 

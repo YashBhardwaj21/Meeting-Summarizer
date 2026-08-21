@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.config import get_settings
-from app.exceptions import PermanentProcessingError, RetryableProcessingError
+from app.utils.exceptions import PermanentProcessingError, RetryableProcessingError
 from app.integrations.asr.base import ASRProvider, ASRSegment
 
 logger = logging.getLogger(__name__)

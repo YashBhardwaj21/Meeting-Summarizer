@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.exceptions import PermanentProcessingError, RetryableProcessingError
+from app.utils.exceptions import PermanentProcessingError, RetryableProcessingError
 from app.models.enums import JobStatus
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting

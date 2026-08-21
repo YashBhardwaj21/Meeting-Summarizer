@@ -75,20 +75,12 @@ async def create_meeting(
             job_id=job_id.hex,
             _job_id=job_id.hex,
         )
-        if not arq_job:
-            raise RuntimeError("ARQ enqueue_job returned None (job not accepted by Redis).")
-        logger.info(f"Successfully enqueued ARQ job. DB Job ID: {job_id} | ARQ Job ID: {arq_job.job_id}")
+        logger.info(f"Successfully enqueued ARQ job. DB Job ID: {job_id} | ARQ Job accepted (new): {arq_job is not None}")
     except Exception as e:
         logger.error(f"Failed to enqueue job {job_id}: {e}")
         
-        # Re-open job to mark it as FAILED
-        job.status = JobStatus.FAILED.value
-        job.error_code = "QUEUE_ENQUEUE_FAILED"
-        job.error_message = str(e)
-        meeting.status = MeetingStatus.FAILED.value
-        
-        db.add(job)
-        db.add(meeting)
+        from app.services.job_service import update_job_status
+        await update_job_status(db, job_id, JobStatus.FAILED, error_code="QUEUE_ENQUEUE_FAILED", error_message=str(e))
         await db.commit()
         await db.refresh(job)
         await db.refresh(meeting)

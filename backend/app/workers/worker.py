@@ -4,6 +4,7 @@ import asyncio
 import logging
 import uuid
 from typing import Any
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from arq.worker import Retry
@@ -14,11 +15,12 @@ from app.database import async_session_factory
 from app.models.enums import JobStatus, MeetingStatus
 from app.models.meeting import Meeting
 from app.models.file import File
+from app.models.job import ProcessingJob
 from sqlalchemy import select
 from app.services import job_service, storage_service
 from app.workers.cleanup import cleanup_chat, delete_file_job
 from app.workers.transcription import run_transcription_pipeline
-from app.exceptions import RetryableProcessingError, PermanentProcessingError
+from app.utils.exceptions import RetryableProcessingError, PermanentProcessingError
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -46,6 +48,7 @@ async def _check_cancelled(db: AsyncSession, job_id: uuid.UUID) -> bool:
 
 async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
     """Main job handler for processing an uploaded meeting file."""
+    logger.info(f"Worker received job {job_id_hex}")
     job_id = uuid.UUID(job_id_hex)
     job_try = ctx.get("job_try", 1)
     
@@ -89,10 +92,7 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             await run_transcription_pipeline(db, job, meeting, file_record, metrics)
             
             # On success: update metrics and complete job
-            job.processing_metrics = metrics
-            job.completed_at = datetime.now(timezone.utc)
-            await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete")
-            meeting.status = MeetingStatus.READY.value
+            await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete", processing_metrics=metrics)
             await db.commit()
             
             logger.info(f"Successfully processed job {job_id} for meeting {meeting.id}")
@@ -136,25 +136,14 @@ async def handle_job_failure(db, job_id: uuid.UUID, error: Exception, job_try: i
         
         # Mark as QUEUED for the retry
         await job_service.update_job_status(db, job_id, JobStatus.QUEUED)
-        meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
-        if meeting:
-            meeting.status = MeetingStatus.PENDING.value
         await db.commit()
         
         logger.info(f"Job {job_id} failed. Retrying in {delay}s (Attempt {job_try + 1})")
         raise Retry(defer=delay)
     else:
-        from datetime import datetime, timezone
-        job.completed_at = datetime.now(timezone.utc)
         await job_service.update_job_status(
             db, job_id, JobStatus.FAILED, error_message=str(error)
         )
-        meeting = await db.scalar(
-            select(Meeting).where(Meeting.id == job.meeting_id)
-        )
-        if meeting is not None:
-            meeting.status = MeetingStatus.FAILED.value
-            
         await db.commit()
         logger.error(f"Job {job_id} failed permanently after {job_try} attempts.")
 
@@ -177,17 +166,17 @@ async def check_stale_jobs(ctx: dict[str, Any]) -> None:
         )
         result_q = await db.execute(stmt_queued)
         for job in result_q.scalars().all():
-            job.status = JobStatus.FAILED.value
-            job.error_code = "QUEUE_TIMEOUT"
-            job.error_message = "Job was in queue for too long"
-            job.completed_at = now
-            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
-            if meeting:
-                meeting.status = MeetingStatus.FAILED.value
+            await job_service.update_job_status(
+                db, 
+                job.id, 
+                JobStatus.FAILED, 
+                error_code="QUEUE_TIMEOUT", 
+                error_message="Job was in queue for too long"
+            )
             try:
                 await ctx["redis"].abort_job(job.id.hex)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to abort stale ARQ job {job.id.hex}: {e}")
 
         # PROCESSING_TIMEOUT
         processing_timeout = now - timedelta(seconds=settings.processing_job_timeout_seconds)
@@ -200,17 +189,17 @@ async def check_stale_jobs(ctx: dict[str, Any]) -> None:
         )
         result_p = await db.execute(stmt_proc)
         for job in result_p.scalars().all():
-            job.status = JobStatus.FAILED.value
-            job.error_code = "PROCESSING_TIMEOUT"
-            job.error_message = "Job exceeded processing timeout"
-            job.completed_at = now
-            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
-            if meeting:
-                meeting.status = MeetingStatus.FAILED.value
+            await job_service.update_job_status(
+                db, 
+                job.id, 
+                JobStatus.FAILED, 
+                error_code="PROCESSING_TIMEOUT", 
+                error_message="Job exceeded processing timeout"
+            )
             try:
                 await ctx["redis"].abort_job(job.id.hex)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Failed to abort stale ARQ job {job.id.hex}: {e}")
                 
         await db.commit()
 
@@ -219,7 +208,7 @@ async def check_stale_jobs(ctx: dict[str, Any]) -> None:
 class WorkerSettings:
     functions = [process_meeting_job, cleanup_chat, delete_file_job]
     from arq.cron import cron
-    cron_jobs = [cron(check_stale_jobs, minute={0, 15, 30, 45})]
+    cron_jobs = [cron(check_stale_jobs, minute=set(range(0, 60, 5)))]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     on_startup = startup
     on_shutdown = shutdown

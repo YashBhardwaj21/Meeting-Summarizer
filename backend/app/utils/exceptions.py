@@ -32,3 +32,25 @@ class StorageError(AppException):
     """Object storage error (500)."""
     def __init__(self, message: str = "Storage operation failed"):
         super().__init__(500, "STORAGE_ERROR", message)
+
+
+class InternalServerError(AppException):
+    """Internal server error (500)."""
+    def __init__(self, message: str = "Internal server error"):
+        super().__init__(500, "INTERNAL_ERROR", message)
+
+
+class ProcessingError(AppException):
+    """Base class for meeting processing pipeline errors."""
+    def __init__(self, message: str, error_code: str = "PROCESSING_ERROR"):
+        super().__init__(500, error_code, message)
+
+
+class RetryableProcessingError(ProcessingError):
+    """An error that should trigger a retry (e.g. rate limits, network timeouts)."""
+    pass
+
+
+class PermanentProcessingError(ProcessingError):
+    """An error that is fatal and should fail the job (e.g. bad format, auth failed)."""
+    pass

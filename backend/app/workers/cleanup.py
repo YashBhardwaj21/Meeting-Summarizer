@@ -52,7 +52,7 @@ async def cleanup_chat(ctx: dict[str, Any], chat_id_hex: str) -> None:
             active_jobs = [j for j in jobs if j.status in [JobStatus.QUEUED.value, JobStatus.PROCESSING.value]]
             for job in active_jobs:
                 try:
-                    await job_service.cancel_job(db, ctx["redis"], job.id)
+                    await job_service.cancel_job(db, ctx["redis"], job.id, commit=False)
                 except InternalServerError as e:
                     # If abort fails, fail the whole cleanup. ARQ will retry.
                     logger.error(f"Cannot abort job {job.id}, failing cleanup: {e}")

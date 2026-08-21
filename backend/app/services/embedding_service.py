@@ -1,6 +1,6 @@
 from app.integrations.embeddings.base import EmbeddingProvider
 from app.services.chunking_service import ChunkData
-from app.exceptions import PermanentProcessingError
+from app.utils.exceptions import PermanentProcessingError
 
 async def embed_chunks(
     chunks: list[ChunkData], 

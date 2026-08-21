@@ -1,6 +1,6 @@
 import logging
 from app.config import get_settings
-from app.exceptions import PermanentProcessingError, RetryableProcessingError
+from app.utils.exceptions import PermanentProcessingError, RetryableProcessingError
 from app.integrations.embeddings.base import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
