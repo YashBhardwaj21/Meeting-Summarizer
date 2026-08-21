@@ -1,19 +1,43 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router';
+import React, { useState } from 'react';
+import { NavLink, useNavigate, useParams } from 'react-router';
 import { useChats } from '../../hooks/useChats';
+import { useStorage } from '../../hooks/useStorage';
 import './layout.css';
 
 export function Sidebar() {
   const { chats, loading, createChat } = useChats();
   const navigate = useNavigate();
+  const { chatId } = useParams();
+  const { usedBytes, quotaBytes, usedPercent, loading: storageLoading } = useStorage(chatId);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleNewChat = async () => {
     try {
+      setIsCreating(true);
+      setError(null);
       const newChat = await createChat();
       navigate(`/chats/${newChat.id}`);
     } catch (err) {
-      console.error('Failed to create chat:', err);
+      setError('Failed to create workspace.');
+    } finally {
+      setIsCreating(false);
     }
+  };
+
+  const filteredChats = chats.filter(chat => 
+    chat.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (searchQuery === '' && !chat.title) ||
+    (!chat.title && 'untitled workspace'.includes(searchQuery.toLowerCase()))
+  );
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   return (
@@ -22,10 +46,18 @@ export function Sidebar() {
         <h1 className="logo">[M] MeetSum</h1>
       </div>
       <div className="sidebar-actions">
-        <button className="btn-new-chat" onClick={handleNewChat}>+ New Chat</button>
+        <button className="btn-new-chat" onClick={handleNewChat} disabled={isCreating}>
+          {isCreating ? 'Creating...' : '+ New Chat'}
+        </button>
+        {error && <div style={{ color: 'var(--color-error)', fontSize: '0.75rem', marginTop: '4px', textAlign: 'center' }}>{error}</div>}
       </div>
       <div className="sidebar-search">
-        <input type="text" placeholder="Search chats..." />
+        <input 
+          type="text" 
+          placeholder="Search chats..." 
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
       <div className="sidebar-nav">
         <h2 className="nav-heading">CHATS</h2>
@@ -37,7 +69,7 @@ export function Sidebar() {
           </div>
         ) : (
           <ul className="chat-list">
-            {chats.map(chat => (
+            {filteredChats.map(chat => (
               <li key={chat.id}>
                 <NavLink 
                   to={`/chats/${chat.id}`} 
@@ -49,8 +81,8 @@ export function Sidebar() {
                 </NavLink>
               </li>
             ))}
-            {chats.length === 0 && (
-              <li className="text-muted" style={{ padding: '12px 16px', fontSize: '0.875rem' }}>No chats yet.</li>
+            {filteredChats.length === 0 && (
+              <li className="text-muted" style={{ padding: '12px 16px', fontSize: '0.875rem' }}>No chats found.</li>
             )}
           </ul>
         )}
@@ -59,16 +91,18 @@ export function Sidebar() {
         <div className="storage-widget">
           <div className="storage-header">
             <span>Storage</span>
-            <span>12%</span>
+            <span>{storageLoading ? '--' : `${usedPercent}%`}</span>
           </div>
-          <div className="storage-text">12.4 GB / 100 GB</div>
+          <div className="storage-text">
+            {storageLoading ? 'Loading...' : `${formatBytes(usedBytes)} / ${formatBytes(quotaBytes)}`}
+          </div>
           <div className="progress-bar">
-            <div className="progress-fill" style={{ width: '12%' }}></div>
+            <div className="progress-fill" style={{ width: `${storageLoading ? 0 : usedPercent}%` }}></div>
           </div>
         </div>
         <div className="profile-widget">
-          <div className="avatar">Y</div>
-          <div className="user-name">Demo User</div>
+          <div className="avatar" style={{ backgroundColor: 'var(--color-primary-hover)' }}>W</div>
+          <div className="user-name">Local Workspace</div>
         </div>
       </div>
     </aside>

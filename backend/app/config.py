@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     # ── File limits ──────────────────────────────────────────────────
     max_file_size_bytes: int = 2 * 1024 * 1024 * 1024  # 2 GB
     presign_expiry_seconds: int = 900  # 15 minutes
+    storage_quota_bytes: int = 10 * 1024 * 1024 * 1024  # 10 GB
 
     # ── ASR ──────────────────────────────────────────────────────────
     groq_api_key: str = ""

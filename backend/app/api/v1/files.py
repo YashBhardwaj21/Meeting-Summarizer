@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
-from app.schemas.file import FileResponse, PresignRequest, PresignResponse
+from app.schemas.file import FileResponse, PresignRequest, PresignResponse, StorageUsageResponse
 from app.services import file_service
 
 router = APIRouter(tags=["files"])
@@ -90,3 +90,16 @@ async def delete_file_endpoint(
     arq_pool = request.app.state.arq_pool
     await file_service.delete_file(db, arq_pool, chat_id, file_id)
     return {"status": "accepted"}
+
+
+@router.get(
+    "/chats/{chat_id}/storage",
+    response_model=StorageUsageResponse,
+    summary="Get storage usage for a chat",
+)
+async def get_storage_usage_endpoint(
+    chat_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieves real-time storage usage and quota for a chat workspace."""
+    return await file_service.get_storage_usage(db, chat_id)

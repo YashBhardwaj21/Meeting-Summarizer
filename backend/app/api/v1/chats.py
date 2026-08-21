@@ -12,6 +12,18 @@ from app.services import chat_service
 router = APIRouter(prefix="/chats", tags=["chats"])
 
 
+@router.get(
+    "",
+    response_model=list[ChatResponse],
+    summary="List active chats",
+)
+async def list_chats_endpoint(
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieves all active chat workspaces."""
+    return await chat_service.list_chats(db)
+
+
 @router.post(
     "",
     response_model=ChatResponse,

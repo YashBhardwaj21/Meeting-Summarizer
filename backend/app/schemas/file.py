@@ -30,3 +30,9 @@ class FileResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class StorageUsageResponse(BaseModel):
+    used_bytes: int
+    quota_bytes: int
+    used_percent: float

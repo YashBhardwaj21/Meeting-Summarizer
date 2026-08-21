@@ -57,6 +57,8 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
     ? `${Math.floor(meeting.duration_seconds / 60)}m ${Math.round(meeting.duration_seconds % 60)}s` 
     : 'Unknown';
 
+  const isReady = meeting.status === 'ready';
+
   return (
     <div className="meeting-detail-container">
       <div className="meeting-detail-header">
@@ -68,10 +70,8 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
         </div>
       </div>
 
-      {job && meeting.status !== 'ready' && (
-        <JobStatusDisplay job={job} />
-      )}
-
+      {job && <JobStatusDisplay job={job} />}
+      
       {meeting.status === 'processing' && !job && (
         <div className="job-status-card">
           <div className="job-progress">
@@ -81,9 +81,11 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
         </div>
       )}
 
-      {meeting.status === 'ready' && (
-        <TranscriptViewer meetingId={meeting.id} />
-      )}
+      <TranscriptViewer 
+        chatId={meeting.chat_id}
+        meetingId={meeting.id} 
+        isReady={isReady} 
+      />
     </div>
   );
 }

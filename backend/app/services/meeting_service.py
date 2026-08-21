@@ -85,3 +85,17 @@ async def get_meeting(db: AsyncSession, meeting_id: uuid.UUID) -> Meeting:
         raise NotFoundError("Meeting not found.")
         
     return meeting
+
+
+async def list_meetings(db: AsyncSession, chat_id: uuid.UUID) -> list[Meeting]:
+    """List all meetings in a chat."""
+    # Ensure chat exists and is active
+    await chat_service.get_chat(db, chat_id)
+    
+    stmt = select(Meeting).where(
+        Meeting.chat_id == chat_id,
+        Meeting.deleted_at.is_(None)
+    ).order_by(Meeting.created_at.desc())
+    
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

@@ -16,12 +16,12 @@ export function useJobPolling(jobId: string | undefined, onComplete?: () => void
         const currentJob = await jobsApi.get(jobId);
         setJob(currentJob);
 
-        if (currentJob.status === 'complete') {
+        if (currentJob.status === 'completed') {
           if (onComplete) onComplete();
           return; // Stop polling
         }
         
-        if (currentJob.status === 'failed') {
+        if (currentJob.status === 'failed' || currentJob.status === 'cancelled') {
           return; // Stop polling
         }
 

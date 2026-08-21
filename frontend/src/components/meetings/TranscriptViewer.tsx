@@ -1,11 +1,14 @@
 import React from 'react';
 import { useTranscripts } from '../../hooks/useTranscripts';
+
 import { SkeletonText } from '../ui/Skeleton';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 interface TranscriptViewerProps {
+  chatId: string;
   meetingId: string;
+  isReady: boolean;
 }
 
 function formatTime(seconds: number) {
@@ -18,8 +21,8 @@ function formatTime(seconds: number) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-export function TranscriptViewer({ meetingId }: TranscriptViewerProps) {
-  const { segments, loading, error, hasMore, loadMore, total } = useTranscripts(meetingId, true);
+export function TranscriptViewer({ chatId, meetingId, isReady }: TranscriptViewerProps) {
+  const { segments, loading, error, hasMore, loadMore, total } = useTranscripts(chatId, meetingId, isReady);
 
   if (error) {
     return <div className="upload-error">{error.message}</div>;

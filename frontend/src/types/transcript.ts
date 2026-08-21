@@ -1,5 +1,6 @@
 export interface TranscriptSegment {
   id: string;
+  sequence: number;
   speaker: string | null;
   start_time: number;
   end_time: number;
@@ -7,7 +8,8 @@ export interface TranscriptSegment {
 }
 
 export interface TranscriptResponse {
-  meeting_id: string;
-  total_segments: number;
-  segments: TranscriptSegment[];
+  items: TranscriptSegment[];
+  total: number;
+  offset: number;
+  limit: number;
 }

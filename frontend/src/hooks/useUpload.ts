@@ -55,7 +55,7 @@ export function useUpload(chatId: string) {
 
       // 3. Mark file as complete
       setProgress(85);
-      await filesApi.complete(file_id);
+      await filesApi.complete(chatId, file_id);
 
       // 4. Create meeting
       setProgress(95);

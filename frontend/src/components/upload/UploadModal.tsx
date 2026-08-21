@@ -72,23 +72,30 @@ export function UploadModal({ chatId, isOpen, onClose }: UploadModalProps) {
                     <span className="file-size">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
                   </div>
                 ) : (
-                  <div className="drop-prompt">
-                    <span className="upload-icon">↑</span>
-                    <p>Click or drag & drop media here</p>
-                    <p className="text-muted" style={{ fontSize: '0.875rem' }}>Supports MP3, MP4, WAV, M4A up to 500MB</p>
-                  </div>
-                )}
+                  <div className="upload-text">
+                  <div className="upload-primary-text">Click to upload or drag and drop</div>
+                  <div className="upload-secondary-text">Supports MP3, MP4, WAV, M4A, OGG, WebM, MOV, MKV</div>
+                </div>
+              )}
               </div>
-              
-              <div className="modal-actions">
-                <button className="btn-secondary" onClick={onClose}>Cancel</button>
-                <button 
-                  className="btn-primary" 
-                  disabled={!selectedFile}
-                  onClick={handleStartUpload}
-                >
-                  Upload & Process
-                </button>
+            
+            {error && <div className="upload-error">{error.message}</div>}
+            
+            <div className="modal-actions">
+              <button 
+                className="btn-secondary" 
+                onClick={onClose}
+                disabled={isUploading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={handleStartUpload}
+                disabled={!selectedFile || isUploading}
+              >
+                {isUploading ? 'Uploading...' : 'Upload & Process →'}
+              </button>
               </div>
             </>
           ) : (

@@ -14,7 +14,7 @@ from app.models.file import File
 from app.models.enums import MediaType, UploadStatus
 from app.services import chat_service
 from app.services import storage_service
-from app.utils.exceptions import ConflictError, NotFoundError, ValidationError
+from app.utils.exceptions import ConflictError, NotFoundError, ValidationError, StorageError
 
 settings = get_settings()
 
@@ -154,7 +154,10 @@ async def list_files(db: AsyncSession, chat_id: uuid.UUID) -> Sequence[File]:
     # Ensure chat exists
     await chat_service.get_chat(db, chat_id)
     
-    stmt = select(File).where(File.chat_id == chat_id).order_by(File.created_at.desc())
+    stmt = select(File).where(
+        File.chat_id == chat_id,
+        File.deleted_at.is_(None)
+    ).order_by(File.created_at.desc())
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -185,3 +188,29 @@ async def delete_file(db: AsyncSession, arq_pool: ArqRedis, chat_id: uuid.UUID, 
     # Enqueue cleanup job to actually remove from storage
     if file_record.storage_key:
         await arq_pool.enqueue_job("delete_file_job", storage_key=file_record.storage_key)
+
+
+async def get_storage_usage(db: AsyncSession, chat_id: uuid.UUID) -> dict[str, float]:
+    """Calculate storage usage for a chat workspace."""
+    # Ensure chat exists
+    await chat_service.get_chat(db, chat_id)
+    
+    from sqlalchemy import func
+    
+    stmt = select(func.coalesce(func.sum(File.size_bytes), 0)).where(
+        File.chat_id == chat_id,
+        File.upload_status == UploadStatus.UPLOADED.value,
+        File.deleted_at.is_(None)
+    )
+    
+    result = await db.execute(stmt)
+    used_bytes = result.scalar() or 0
+    
+    quota_bytes = settings.storage_quota_bytes
+    used_percent = min(100.0, (used_bytes / quota_bytes) * 100) if quota_bytes > 0 else 0.0
+    
+    return {
+        "used_bytes": int(used_bytes),
+        "quota_bytes": quota_bytes,
+        "used_percent": round(used_percent, 1)
+    }

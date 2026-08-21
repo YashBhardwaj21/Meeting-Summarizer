@@ -8,8 +8,8 @@ interface JobStatusProps {
 
 export function JobStatusDisplay({ job }: JobStatusProps) {
   const isFailed = job.status === 'failed';
-  const isComplete = job.status === 'complete';
-  const inProgress = job.status === 'in_progress' || job.status === 'queued';
+  const isComplete = job.status === 'completed';
+  const inProgress = job.status === 'processing' || job.status === 'queued';
 
   // Map stages to a friendly display
   const stageDisplay = job.stage ? job.stage.replace(/_/g, ' ') : 'Initializing...';

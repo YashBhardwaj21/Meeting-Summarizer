@@ -44,6 +44,19 @@ async def create_meeting_endpoint(
 
 
 @router.get(
+    "/chats/{chat_id}/meetings",
+    response_model=list[MeetingResponse],
+    summary="List all meetings in a chat",
+)
+async def list_meetings_endpoint(
+    chat_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieves all meetings associated with a specific chat."""
+    return await meeting_service.list_meetings(db, chat_id)
+
+
+@router.get(
     "/meetings/{meeting_id}",
     response_model=MeetingResponse,
     summary="Get meeting details",

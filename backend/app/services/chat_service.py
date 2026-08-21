@@ -27,6 +27,24 @@ async def create_chat(db: AsyncSession, title: str | None = None) -> Chat:
     return chat
 
 
+async def list_chats(db: AsyncSession) -> list[Chat]:
+    """Retrieve all active chat workspaces.
+    
+    Args:
+        db: Async database session
+        
+    Returns:
+        List of active Chat records ordered by newest first.
+    """
+    stmt = select(Chat).where(
+        Chat.status == ChatStatus.ACTIVE.value,
+        Chat.deleted_at.is_(None)
+    ).order_by(Chat.created_at.desc())
+    
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def get_chat(db: AsyncSession, chat_id: uuid.UUID) -> Chat:
     """Retrieve an active chat workspace by ID.
 

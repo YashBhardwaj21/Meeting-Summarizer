@@ -1,52 +1,57 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { transcriptsApi } from '../api/transcripts';
 import type { TranscriptSegment } from '../types/transcript';
 
-export function useTranscripts(meetingId: string | undefined, isReady: boolean) {
+export function useTranscripts(chatId: string | undefined, meetingId: string | undefined, isReady: boolean) {
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
-  const [skip, setSkip] = useState(0);
+  const offsetRef = useRef(0);
   const limit = 50;
 
   const fetchTranscripts = useCallback(async (isLoadMore = false) => {
-    if (!meetingId || !isReady) return;
+    if (!chatId || !meetingId || !isReady) return;
+    if (loading) return;
 
     try {
       setLoading(true);
       setError(null);
-      const data = await transcriptsApi.get(meetingId, isLoadMore ? skip : 0, limit);
       
-      setTotal(data.total_segments);
+      const currentOffset = isLoadMore ? offsetRef.current : 0;
+      const data = await transcriptsApi.get(chatId, meetingId, currentOffset, limit);
+      
+      setTotal(data.total);
       
       if (isLoadMore) {
-        setSegments(prev => [...prev, ...data.segments]);
+        setSegments(prev => {
+          // Avoid duplicates in case of strict mode double mounts
+          const existingIds = new Set(prev.map(s => s.id));
+          const newSegments = data.items.filter(s => !existingIds.has(s.id));
+          return [...prev, ...newSegments];
+        });
       } else {
-        setSegments(data.segments);
+        setSegments(data.items);
       }
       
-      setHasMore(isLoadMore ? (skip + limit < data.total_segments) : (limit < data.total_segments));
-      if (!isLoadMore) {
-        setSkip(limit);
-      } else {
-        setSkip(prev => prev + limit);
-      }
+      setHasMore(currentOffset + limit < data.total);
+      offsetRef.current = currentOffset + limit;
       
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch transcript'));
     } finally {
       setLoading(false);
     }
-  }, [meetingId, isReady, skip]);
+  }, [chatId, meetingId, isReady]);
 
   useEffect(() => {
     // Initial fetch when meeting becomes ready
-    if (isReady && meetingId && segments.length === 0) {
+    if (isReady && meetingId && chatId) {
+      offsetRef.current = 0;
       fetchTranscripts(false);
     }
-  }, [isReady, meetingId]); // Intentionally omitting segments and fetchTranscripts
+  }, [isReady, meetingId, chatId, fetchTranscripts]);
 
   const loadMore = () => {
     if (!loading && hasMore) {
