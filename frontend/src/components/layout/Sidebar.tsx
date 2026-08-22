@@ -1,34 +1,64 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useParams, useNavigate } from 'react-router';
 import { useChats } from '../../hooks/useChats';
 import { useStorage } from '../../hooks/useStorage';
+import type { Chat } from '../../types/chat';
 import './layout.css';
 
 export function Sidebar() {
   const { chats, loading, refetch } = useChats();
+  const [localChats, setLocalChats] = useState<Chat[]>([]);
   const { chatId } = useParams();
   const navigate = useNavigate();
   const { usedBytes, quotaBytes, usedPercent, loading: storageLoading } = useStorage(chatId);
 
-  const handleDelete = async (e: React.MouseEvent, id: string, title: string | null) => {
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<{id: string, title: string | null} | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    setLocalChats(chats);
+  }, [chats]);
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string, title: string | null) => {
     e.preventDefault();
     e.stopPropagation();
+    setChatToDelete({ id, title });
+    setDeleteError(null);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!chatToDelete) return;
     
-    if (window.confirm(`Are you sure you want to delete workspace "${title || 'Untitled Workspace'}"?\n\nThis will permanently cancel running jobs and delete all associated meetings, transcripts, and media files.`)) {
-      try {
-        const { chatsApi } = await import('../../api/chats');
-        await chatsApi.delete(id);
-        
-        // Remove from list and navigate away if active
-        refetch();
-        if (id === chatId) {
-          navigate('/');
-        }
-      } catch (error) {
-        console.error('Failed to delete chat:', error);
-        alert('Failed to delete workspace.');
+    setIsDeleting(true);
+    setDeleteError(null);
+    
+    try {
+      const { chatsApi } = await import('../../api/chats');
+      await chatsApi.delete(chatToDelete.id);
+      
+      // Optimistic update
+      setLocalChats(prev => prev.filter(c => c.id !== chatToDelete.id));
+      
+      if (chatToDelete.id === chatId) {
+        navigate('/');
       }
+      
+      setDeleteModalOpen(false);
+      refetch();
+    } catch (error: any) {
+      console.error('Failed to delete chat:', error);
+      setDeleteError(error?.response?.data?.detail || error.message || 'Failed to delete workspace.');
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalOpen(false);
+    setChatToDelete(null);
   };
 
   useEffect(() => {
@@ -60,7 +90,7 @@ export function Sidebar() {
           </div>
         ) : (
           <ul className="chat-list">
-            {chats.map(chat => (
+            {localChats.map(chat => (
               <li key={chat.id}>
                 <NavLink 
                   to={`/chats/${chat.id}`} 
@@ -72,7 +102,7 @@ export function Sidebar() {
                     <div className="chat-meta">{chat.meeting_count} meetings {chat.meeting_count > 0 ? <span>&bull;</span> : ''}</div>
                   </div>
                   <button 
-                    onClick={(e) => handleDelete(e, chat.id, chat.title)}
+                    onClick={(e) => handleDeleteClick(e, chat.id, chat.title)}
                     className="delete-btn"
                     title="Delete workspace"
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
@@ -82,7 +112,7 @@ export function Sidebar() {
                 </NavLink>
               </li>
             ))}
-            {chats.length === 0 && (
+            {localChats.length === 0 && (
               <li className="text-muted" style={{ padding: '12px 16px', fontSize: '0.875rem' }}>No chats found.</li>
             )}
           </ul>
@@ -106,6 +136,31 @@ export function Sidebar() {
           <div className="user-name">Local Workspace</div>
         </div>
       </div>
+      
+      {deleteModalOpen && chatToDelete && (
+        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="modal-content" style={{ backgroundColor: 'var(--color-surface)', padding: '24px', borderRadius: '8px', maxWidth: '400px', width: '100%', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'var(--text-primary)' }}>Delete Workspace</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.875rem', lineHeight: '1.5' }}>
+              Are you sure you want to delete workspace "{chatToDelete.title || 'Untitled Workspace'}"?
+            </p>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '0.875rem', lineHeight: '1.5' }}>
+              This will permanently cancel running jobs and delete all associated meetings, transcripts, and media files.
+            </p>
+            {deleteError && (
+              <div style={{ color: 'var(--color-danger)', marginBottom: '16px', fontSize: '0.875rem', padding: '8px', backgroundColor: 'var(--color-surface-hover)', borderRadius: '4px' }}>
+                {deleteError}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={cancelDelete} disabled={isDeleting} className="btn-secondary" style={{ padding: '6px 16px' }}>Cancel</button>
+              <button onClick={confirmDelete} disabled={isDeleting} className="btn-primary" style={{ padding: '6px 16px', backgroundColor: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

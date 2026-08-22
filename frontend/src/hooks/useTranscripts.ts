@@ -9,13 +9,15 @@ export function useTranscripts(chatId: string | undefined, meetingId: string | u
   const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const offsetRef = useRef(0);
+  const loadingRef = useRef(false);
   const limit = 50;
 
   const fetchTranscripts = useCallback(async (isLoadMore = false) => {
     if (!chatId || !meetingId || !isReady) return;
-    if (loading) return;
+    if (loadingRef.current) return;
 
     try {
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
       
@@ -41,6 +43,7 @@ export function useTranscripts(chatId: string | undefined, meetingId: string | u
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch transcript'));
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, [chatId, meetingId, isReady]);
@@ -54,7 +57,7 @@ export function useTranscripts(chatId: string | undefined, meetingId: string | u
   }, [isReady, meetingId, chatId, fetchTranscripts]);
 
   const loadMore = () => {
-    if (!loading && hasMore) {
+    if (!loadingRef.current && hasMore) {
       fetchTranscripts(true);
     }
   };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation } from 'react-router';
 import { meetingsApi } from '../../api/meetings';
+import { jobsApi } from '../../api/jobs';
 import { useJobPolling } from '../../hooks/useJobPolling';
 import type { Meeting } from '../../types/meeting';
 import { JobStatusDisplay } from './JobStatusDisplay';
@@ -12,18 +12,27 @@ interface MeetingDetailProps {
 }
 
 export function MeetingDetail({ meetingId }: MeetingDetailProps) {
-  const location = useLocation();
-  const stateJobId = location.state?.jobId as string | undefined;
-
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | undefined>(undefined);
 
   const fetchMeeting = useCallback(async () => {
     try {
       setLoading(true);
       const data = await meetingsApi.get(meetingId);
       setMeeting(data);
+      
+      if (data.status !== 'ready' && data.status !== 'failed' && data.status !== 'cancelled') {
+        try {
+          const jobData = await jobsApi.getByMeetingId(meetingId);
+          setActiveJobId(jobData.id);
+        } catch (jobErr) {
+          console.error("Failed to fetch active job for meeting", jobErr);
+        }
+      } else {
+        setActiveJobId(undefined);
+      }
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch meeting'));
     } finally {
@@ -35,37 +44,8 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
     fetchMeeting();
   }, [fetchMeeting]);
 
-  // Polling Job if we have a Job ID and the meeting is not ready or failed
-  const { job } = useJobPolling(
-    (meeting?.status !== 'ready' && meeting?.status !== 'failed') ? stateJobId : undefined,
-    fetchMeeting
-  );
-
-  // Fallback meeting polling when no jobId exists and meeting is not terminal
-  useEffect(() => {
-    if (stateJobId) return; // Mutually exclusive with job polling
-    if (!meeting) return;
-    
-    if (meeting.status === 'ready' || meeting.status === 'failed') return;
-    
-    let timeoutId: number;
-    const pollMeeting = async () => {
-      try {
-        const data = await meetingsApi.get(meetingId);
-        setMeeting(data);
-        if (data.status === 'ready' || data.status === 'failed' || data.status === 'cancelled') {
-          return;
-        }
-        timeoutId = window.setTimeout(pollMeeting, 3000);
-      } catch (err) {
-        timeoutId = window.setTimeout(pollMeeting, 5000);
-      }
-    };
-    
-    timeoutId = window.setTimeout(pollMeeting, 3000);
-    
-    return () => window.clearTimeout(timeoutId);
-  }, [meeting?.status, meetingId, stateJobId]);
+  // Polling Job if we have an active Job ID
+  const { job } = useJobPolling(activeJobId, fetchMeeting);
 
   if (loading && !meeting) {
     return <div className="text-muted">Loading meeting details...</div>;
