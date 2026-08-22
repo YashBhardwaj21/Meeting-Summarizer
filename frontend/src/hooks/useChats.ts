@@ -5,6 +5,7 @@ import type { Chat } from '../types/chat';
 export function useChats() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchChats = useCallback(async () => {
@@ -25,14 +26,20 @@ export function useChats() {
   }, [fetchChats]);
 
   const createChat = async (title?: string) => {
-    const newChat = await chatsApi.create(title ? { title } : undefined);
-    setChats(prev => [newChat, ...prev]);
-    return newChat;
+    try {
+      setCreating(true);
+      const newChat = await chatsApi.create(title ? { title } : undefined);
+      setChats(prev => [newChat, ...prev]);
+      return newChat;
+    } finally {
+      setCreating(false);
+    }
   };
 
   return {
     chats,
     loading,
+    creating,
     error,
     refetch: fetchChats,
     createChat,

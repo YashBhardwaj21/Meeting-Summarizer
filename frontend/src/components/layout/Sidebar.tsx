@@ -6,7 +6,7 @@ import type { Chat } from '../../types/chat';
 import './layout.css';
 
 export function Sidebar() {
-  const { chats, loading, refetch } = useChats();
+  const { chats, loading, creating, refetch, createChat } = useChats();
   const [localChats, setLocalChats] = useState<Chat[]>([]);
   const { chatId } = useParams();
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ export function Sidebar() {
   const [chatToDelete, setChatToDelete] = useState<{id: string, title: string | null} | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalChats(chats);
@@ -61,6 +62,17 @@ export function Sidebar() {
     setChatToDelete(null);
   };
 
+  const handleCreateChat = async () => {
+    setCreateError(null);
+    try {
+      const newChat = await createChat('Untitled Workspace');
+      navigate(`/chats/${newChat.id}`);
+    } catch (error: any) {
+      console.error('Failed to create chat:', error);
+      setCreateError(error?.response?.data?.detail || error.message || 'Failed to create workspace.');
+    }
+  };
+
   useEffect(() => {
     if (chatId) {
       refetch();
@@ -81,7 +93,22 @@ export function Sidebar() {
         <h1 className="logo">[M] MeetSum</h1>
       </div>
       <div className="sidebar-nav">
-        <h2 className="nav-heading">CHATS</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '16px' }}>
+          <h2 className="nav-heading">CHATS</h2>
+          <button 
+            onClick={handleCreateChat} 
+            disabled={creating}
+            className="btn-primary"
+            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto', marginBottom: '8px' }}
+          >
+            {creating ? '...' : '+ New'}
+          </button>
+        </div>
+        {createError && (
+          <div style={{ color: 'var(--color-danger)', fontSize: '0.75rem', padding: '0 16px 8px' }}>
+            {createError}
+          </div>
+        )}
         {loading ? (
           <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div className="skeleton" style={{ height: '48px', width: '100%' }}></div>

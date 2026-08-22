@@ -5,6 +5,7 @@ import { useJobPolling } from '../../hooks/useJobPolling';
 import type { Meeting } from '../../types/meeting';
 import { JobStatusDisplay } from './JobStatusDisplay';
 import { TranscriptViewer } from './TranscriptViewer';
+import { ChatComposer } from '../composer/ChatComposer';
 import './meetings.css';
 
 interface MeetingDetailProps {
@@ -89,6 +90,10 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
         meetingId={meeting.id} 
         status={meeting.status} 
       />
+      
+      <div style={{ marginTop: '40px' }}>
+        <ChatComposer chatId={meeting.chat_id} />
+      </div>
     </div>
   );
 }

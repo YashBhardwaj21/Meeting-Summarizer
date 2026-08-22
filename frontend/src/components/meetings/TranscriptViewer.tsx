@@ -54,25 +54,54 @@ export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewer
     );
   }
 
+  const groupedSegments = React.useMemo(() => {
+    const groups: { id: string; speaker: string; startTime: number; text: string }[] = [];
+    let currentGroup: any = null;
+
+    for (const segment of segments) {
+      let rawSpeaker = segment.speaker || 'SPEAKER_00';
+      // Normalize SPEAKER_00 -> Speaker 1
+      const match = rawSpeaker.match(/SPEAKER_(\d+)/i) || rawSpeaker.match(/speaker_(\d+)/i);
+      let displaySpeaker = rawSpeaker;
+      if (match) {
+        displaySpeaker = `Speaker ${parseInt(match[1], 10) + 1}`;
+      }
+
+      if (currentGroup && currentGroup.speaker === displaySpeaker) {
+        currentGroup.text += ' ' + segment.text;
+      } else {
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = {
+          id: segment.id,
+          speaker: displaySpeaker,
+          startTime: segment.start_time,
+          text: segment.text
+        };
+      }
+    }
+    if (currentGroup) groups.push(currentGroup);
+    return groups;
+  }, [segments]);
+
   return (
     <div className="transcript-container">
       <div className="transcript-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3>Transcript ({total} segments)</h3>
       </div>
       
-      <div className="transcript-segments" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {segments.map((segment) => (
-          <div key={segment.id} className="transcript-segment" style={{ display: 'flex', gap: '16px' }}>
+      <div className="transcript-segments" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {groupedSegments.map((group) => (
+          <div key={group.id} className="transcript-segment-group" style={{ display: 'flex', gap: '16px' }}>
             <div className="segment-meta" style={{ width: '80px', flexShrink: 0 }}>
-              <div className="segment-time" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                {formatTime(segment.start_time)}
+              <div className="segment-speaker" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)' }}>
+                {group.speaker}
               </div>
-              <div className="segment-speaker" style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-primary-hover)' }}>
-                {segment.speaker || 'Speaker'}
+              <div className="segment-time" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                {formatTime(group.startTime)}
               </div>
             </div>
-            <div className="segment-text" style={{ flex: 1, backgroundColor: 'var(--color-surface)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: 'var(--border)' }}>
-              {segment.text}
+            <div className="segment-text" style={{ flex: 1, fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--color-text)' }}>
+              {group.text}
             </div>
           </div>
         ))}
