@@ -17,3 +17,4 @@ openai>=1.40.0
 pgvector>=0.3.0
 tiktoken>=0.7.0
 fuzzywuzzy>=0.18.0
+faster-whisper>=1.0.0

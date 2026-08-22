@@ -49,8 +49,10 @@ class Settings(BaseSettings):
 
     # ── ASR ──────────────────────────────────────────────────────────
     groq_api_key: str = ""
-    asr_provider: str = "groq"
-    asr_model: str = "whisper-large-v3-turbo"
+    asr_provider: str = "local"
+    asr_model: str = "small"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
     asr_chunk_duration_seconds: int = 300
     asr_chunk_overlap_seconds: int = 15
     asr_concurrency: int = 4
@@ -62,13 +64,17 @@ class Settings(BaseSettings):
 
     # ── Embeddings ───────────────────────────────────────────────────
     openai_api_key: str = ""
-    embedding_provider: str = "openai"
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    embedding_provider: str = "nomic"
+    embedding_model: str = "nomic-embed-text"
+    embedding_dimensions: int = 768
     embedding_batch_size: int = 32
     embedding_timeout_seconds: int = 60
     embedding_max_retries: int = 3
     embedding_max_input_tokens: int = 8191
+
+    # ── LLM ──────────────────────────────────────────────────────────
+    llm_provider: str = "ollama"
+    ollama_base_url: str = "http://host.docker.internal:11434"
 
     # ── Chunking ─────────────────────────────────────────────────────
     transcript_chunk_max_tokens: int = 800

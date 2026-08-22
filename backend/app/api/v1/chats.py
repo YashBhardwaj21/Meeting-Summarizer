@@ -8,6 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.chat import ChatCreate, ChatResponse
 from app.services import chat_service
+from app.services.rag_service import rag_service
+from pydantic import BaseModel
+
+class AskQuestionRequest(BaseModel):
+    question: str
+    limit: int = 10
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -69,3 +75,20 @@ async def delete_chat_endpoint(
     arq_pool = request.app.state.arq_pool
     await chat_service.delete_chat(db, arq_pool, chat_id)
     return {"status": "accepted"}
+
+
+@router.post(
+    "/{chat_id}/ask",
+    summary="Ask a question about the chat's meetings",
+)
+async def ask_chat_question_endpoint(
+    chat_id: uuid.UUID,
+    request: AskQuestionRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Query the transcript RAG pipeline."""
+    # Ensure chat exists
+    await chat_service.get_chat(db, chat_id)
+    
+    answer = await rag_service.ask_question(db, chat_id, request.question, request.limit)
+    return {"answer": answer}

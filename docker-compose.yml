@@ -53,6 +53,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./models:/app/models
     env_file:
       - .env
     depends_on:
@@ -70,6 +71,7 @@ services:
     command: arq app.workers.worker.WorkerSettings
     volumes:
       - ./backend:/app
+      - ./models:/app/models
     env_file:
       - .env
     depends_on:

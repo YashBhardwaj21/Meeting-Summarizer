@@ -76,7 +76,10 @@ async def update_job_status(
         if status == JobStatus.COMPLETED:
             meeting.status = MeetingStatus.READY.value
         elif status == JobStatus.FAILED:
-            meeting.status = MeetingStatus.FAILED.value
+            if meeting.status == MeetingStatus.TRANSCRIPT_READY.value:
+                meeting.status = MeetingStatus.INDEXING_FAILED.value
+            else:
+                meeting.status = MeetingStatus.FAILED.value
         elif status == JobStatus.CANCELLED:
             meeting.status = MeetingStatus.CANCELLED.value
         elif status == JobStatus.QUEUED:
@@ -171,20 +174,18 @@ async def retry_job(db: AsyncSession, arq_pool, job_id: uuid.UUID) -> Processing
     try:
         arq_job = await arq_pool.enqueue_job(
             "process_meeting_job",
-            job_id=job_id.hex,
+            job_id_hex=job_id.hex,
             _job_id=job_id.hex,
         )
     except Exception as e:
         import logging
+        from app.utils.exceptions import InternalServerError
         logging.getLogger(__name__).error(f"Failed to enqueue retry for job {job_id}: {e}")
-        job.status = JobStatus.FAILED.value
-        job.error_code = "QUEUE_ENQUEUE_FAILED"
-        job.error_message = str(e)
-        if meeting:
-            meeting.status = MeetingStatus.FAILED.value
+        
+        await update_job_status(db, job_id, JobStatus.FAILED, error_code="QUEUE_ENQUEUE_FAILED", error_message=str(e))
         await db.commit()
         await db.refresh(job)
-        from app.utils.exceptions import InternalServerError
+        
         raise InternalServerError(f"Failed to enqueue processing job: {str(e)}")
         
     return job

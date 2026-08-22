@@ -96,18 +96,15 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             
         except asyncio.CancelledError:
             logger.warning(f"Job {job_id} cancelled during processing.")
-            from datetime import datetime, timezone
-            job = await job_service.get_job(db, job_id)
-            job.status = JobStatus.CANCELLED.value
-            job.completed_at = datetime.now(timezone.utc)
-            meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
-            if meeting:
-                meeting.status = MeetingStatus.CANCELLED.value
-            await db.commit()
-            
-            # Cleanup temp dir is now handled by run_transcription_pipeline's finally block
-            # _cleanup_temp_dir(job_id)
-            
+            # Job was likely already marked CANCELLED in the database by the API.
+            # We will use update_job_status to safely re-affirm it if needed, catching any state conflicts.
+            from app.utils.exceptions import ConflictError
+            try:
+                await job_service.update_job_status(db, job_id, JobStatus.CANCELLED)
+                await db.commit()
+            except ConflictError:
+                # If it's already cancelled, or otherwise invalid, we just rollback and ignore
+                await db.rollback()
             raise
         except RetryableProcessingError as exc:
             logger.warning(f"Transient error processing job {job_id}: {exc}")
@@ -119,8 +116,16 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             # Force attempt count to max_attempts so it fails immediately
             await handle_job_failure(db, job_id, exc, job.max_attempts)
         except Exception as exc:
-            logger.error(f"Unexpected error processing job {job_id}: {exc}", exc_info=True)
             await db.rollback()
+            # If the job was already cancelled by the user, we might get a ConflictError here 
+            # when trying to complete it or due to other concurrent modifications.
+            # We don't want to override CANCELLED with FAILED.
+            job = await job_service.get_job(db, job_id)
+            if job.status == JobStatus.CANCELLED.value:
+                logger.warning(f"Job {job_id} raised an error but is already cancelled. Ignoring.")
+                return
+                
+            logger.error(f"Unexpected error processing job {job_id}: {exc}", exc_info=True)
             await handle_job_failure(db, job_id, exc, job_try)
 
 

@@ -31,8 +31,10 @@ class MeetingStatus(str, enum.Enum):
 
     PENDING = "pending"        # Meeting created, job not yet picked up
     PROCESSING = "processing"  # Worker is actively processing
+    TRANSCRIPT_READY = "transcript_ready"  # Transcript generated, embeddings not yet complete
     READY = "ready"            # All processing complete, queryable
-    FAILED = "failed"          # Processing failed after max retries
+    INDEXING_FAILED = "indexing_failed"    # Transcript succeeded, but embedding/indexing failed
+    FAILED = "failed"          # Processing failed before transcript generated
     CANCELLED = "cancelled"    # Job was cancelled
 
 

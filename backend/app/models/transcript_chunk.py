@@ -32,7 +32,7 @@ class TranscriptChunk(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     
     # Optional because it's populated in a later stage than chunking
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
     
     # Provenance metadata - list of source TranscriptSegment IDs (not relational FK)
     segment_ids: Mapped[list[uuid.UUID] | None] = mapped_column(

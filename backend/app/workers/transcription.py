@@ -138,6 +138,10 @@ async def run_transcription_pipeline(
         segment_uuids = [seg.id for seg in db_segments]
         metrics["transcript_persist_time_ms"] = int((time.monotonic() - t3) * 1000)
         
+        from app.models.enums import MeetingStatus
+        meeting.status = MeetingStatus.TRANSCRIPT_READY.value
+        await db.commit()
+        
         # 6. Semantic Chunking
         if await _check_cancelled(db, job_id): return
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="chunking")
