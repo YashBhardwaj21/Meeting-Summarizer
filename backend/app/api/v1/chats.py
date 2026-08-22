@@ -6,14 +6,17 @@ from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.chat import ChatCreate, ChatResponse
+from app.schemas.chat import (
+    ChatCreate, 
+    ChatResponse, 
+    AskQuestionRequest, 
+    AskQuestionResponse,
+    ChatMessageResponse
+)
+from app.models.chat_message import ChatMessage
 from app.services import chat_service
 from app.services.rag_service import rag_service
-from pydantic import BaseModel
-
-class AskQuestionRequest(BaseModel):
-    question: str
-    limit: int = 10
+from sqlalchemy import select
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -79,6 +82,7 @@ async def delete_chat_endpoint(
 
 @router.post(
     "/{chat_id}/ask",
+    response_model=AskQuestionResponse,
     summary="Ask a question about the chat's meetings",
 )
 async def ask_chat_question_endpoint(
@@ -90,5 +94,48 @@ async def ask_chat_question_endpoint(
     # Ensure chat exists
     await chat_service.get_chat(db, chat_id)
     
-    answer = await rag_service.ask_question(db, chat_id, request.question, request.limit)
-    return {"answer": answer}
+    # Save user message
+    user_msg = ChatMessage(
+        chat_id=chat_id,
+        role="user",
+        content=request.question
+    )
+    db.add(user_msg)
+    await db.commit()
+    await db.refresh(user_msg)
+    
+    # Get RAG response
+    answer, sources = await rag_service.ask_question(db, chat_id, request.question, request.limit)
+    
+    # Save assistant message
+    assistant_msg = ChatMessage(
+        chat_id=chat_id,
+        role="assistant",
+        content=answer,
+        sources=sources
+    )
+    db.add(assistant_msg)
+    await db.commit()
+    await db.refresh(assistant_msg)
+    
+    return AskQuestionResponse(
+        message=ChatMessageResponse.model_validate(assistant_msg),
+        sources=sources
+    )
+
+@router.get(
+    "/{chat_id}/messages",
+    response_model=list[ChatMessageResponse],
+    summary="Get chat messages",
+)
+async def get_chat_messages_endpoint(
+    chat_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve conversation history for a chat."""
+    # Ensure chat exists
+    await chat_service.get_chat(db, chat_id)
+    
+    stmt = select(ChatMessage).where(ChatMessage.chat_id == chat_id).order_by(ChatMessage.created_at.asc())
+    result = await db.execute(stmt)
+    return result.scalars().all()

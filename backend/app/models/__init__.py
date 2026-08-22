@@ -8,10 +8,12 @@ from app.models.job import ProcessingJob
 from app.models.meeting import Meeting
 from app.models.transcript import TranscriptSegment
 from app.models.transcript_chunk import TranscriptChunk
+from app.models.chat_message import ChatMessage
 
 __all__ = [
     "Base",
     "Chat",
+    "ChatMessage",
     "ChatStatus",
     "File",
     "JobStatus",

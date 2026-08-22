@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.transcript_chunk import TranscriptChunk
+from app.models.transcript import TranscriptSegment
 from app.models.meeting import Meeting
 from app.models.enums import MeetingStatus
 from app.utils.exceptions import NotFoundError, PermanentProcessingError
@@ -18,7 +19,7 @@ class RAGService:
         self.embedding_provider = get_embedding_provider()
         self.llm_provider = OllamaGemmaProvider()
         
-    async def ask_question(self, db: AsyncSession, chat_id: uuid.UUID, question: str, limit: int = 10) -> str:
+    async def ask_question(self, db: AsyncSession, chat_id: uuid.UUID, question: str, limit: int = 10) -> tuple[str, list[dict[str, Any]]]:
         """
         Ask a question over the transcript chunks of a chat workspace.
         """
@@ -43,7 +44,7 @@ class RAGService:
         chunks = result.scalars().all()
         
         if not chunks:
-            return "No transcript context available to answer your question. Is the meeting finished processing?"
+            return "No transcript context available to answer your question. Is the meeting finished processing?", []
             
         # 3. Construct the prompt
         context_parts = []
@@ -74,7 +75,26 @@ class RAGService:
         # 4. Generate the answer
         try:
             answer = await self.llm_provider.generate_response(system_prompt, user_prompt)
-            return answer
+            
+            # Format sources
+            sources = []
+            for chunk in chunks:
+                speaker = None
+                if chunk.segment_ids:
+                    seg_stmt = select(TranscriptSegment.speaker).where(TranscriptSegment.id == chunk.segment_ids[0])
+                    seg_res = await db.execute(seg_stmt)
+                    speaker = seg_res.scalar_one_or_none()
+                    
+                sources.append({
+                    "meeting_id": chunk.meeting_id,
+                    "chunk_id": chunk.id,
+                    "start_time": chunk.start_time,
+                    "end_time": chunk.end_time,
+                    "speaker": speaker,
+                    "text": chunk.text
+                })
+                
+            return answer, sources
         except Exception as e:
             raise PermanentProcessingError(f"Failed to generate answer: {e}")
             

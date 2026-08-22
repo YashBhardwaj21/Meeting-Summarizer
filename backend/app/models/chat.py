@@ -41,6 +41,11 @@ class Chat(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    messages: Mapped[list["ChatMessage"]] = relationship(  # noqa: F821
+        back_populates="chat",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         return f"<Chat id={self.id} title={self.title!r} status={self.status}>"
