@@ -7,7 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job import ProcessingJob
 from app.models.enums import JobStatus
-from app.utils.exceptions import NotFoundError
+from app.utils.exceptions import NotFoundError, ConflictError, InternalServerError
+
+VALID_TRANSITIONS = {
+    JobStatus.QUEUED.value: {JobStatus.PROCESSING.value, JobStatus.CANCELLED.value, JobStatus.FAILED.value},
+    JobStatus.PROCESSING.value: {JobStatus.COMPLETED.value, JobStatus.CANCELLED.value, JobStatus.QUEUED.value, JobStatus.FAILED.value},
+    JobStatus.COMPLETED.value: set(),
+    JobStatus.FAILED.value: {JobStatus.QUEUED.value},
+    JobStatus.CANCELLED.value: {JobStatus.QUEUED.value},
+}
 
 
 async def get_job(db: AsyncSession, job_id: uuid.UUID) -> ProcessingJob:
@@ -20,6 +28,32 @@ async def get_job(db: AsyncSession, job_id: uuid.UUID) -> ProcessingJob:
         raise NotFoundError("Job not found.")
         
     return job
+
+
+async def get_latest_job_for_meeting(db: AsyncSession, meeting_id: uuid.UUID) -> ProcessingJob:
+    """Retrieve the most relevant active job for a meeting."""
+    # Prioritize active jobs (PROCESSING or QUEUED)
+    stmt = (
+        select(ProcessingJob)
+        .where(ProcessingJob.meeting_id == meeting_id)
+        .order_by(
+            # Custom ordering: PROCESSING (1), QUEUED (2), others (3)
+            # PostgreSQL case statement or simple desc sorting by status if we rely on creation time
+            ProcessingJob.created_at.desc()
+        )
+    )
+    result = await db.execute(stmt)
+    jobs = result.scalars().all()
+    
+    if not jobs:
+        raise NotFoundError("No jobs found for this meeting.")
+        
+    # Return the first active job, or the most recent job overall
+    for job in jobs:
+        if job.status in (JobStatus.PROCESSING.value, JobStatus.QUEUED.value):
+            return job
+            
+    return jobs[0]
 
 
 async def update_job_status(
@@ -44,14 +78,6 @@ async def update_job_status(
     if not job:
         raise NotFoundError("Job not found.")
         
-    VALID_TRANSITIONS = {
-        JobStatus.QUEUED.value: {JobStatus.PROCESSING.value, JobStatus.CANCELLED.value, JobStatus.FAILED.value},
-        JobStatus.PROCESSING.value: {JobStatus.COMPLETED.value, JobStatus.CANCELLED.value, JobStatus.QUEUED.value, JobStatus.FAILED.value},
-        JobStatus.COMPLETED.value: set(),
-        JobStatus.FAILED.value: {JobStatus.QUEUED.value},
-        JobStatus.CANCELLED.value: {JobStatus.QUEUED.value},
-    }
-    
     if status.value not in VALID_TRANSITIONS.get(job.status, set()) and job.status != status.value:
         raise ConflictError(f"Invalid transition from {job.status} to {status.value}")
     
@@ -137,9 +163,20 @@ async def claim_job(db: AsyncSession, job_id: uuid.UUID, attempt_count: int) -> 
     if job.status != JobStatus.QUEUED.value:
         raise ConflictError(f"Cannot claim job. Current status is {job.status}")
         
-    job = await update_job_status(db, job_id, JobStatus.PROCESSING, stage="validation")
+    if JobStatus.PROCESSING.value not in VALID_TRANSITIONS.get(job.status, set()):
+        raise ConflictError(f"Invalid transition from {job.status} to {JobStatus.PROCESSING.value}")
+        
+    job.status = JobStatus.PROCESSING.value
+    job.stage = "validation"
     job.started_at = datetime.now(timezone.utc)
     job.attempt_count = attempt_count
+    
+    # Sync meeting
+    from app.models.meeting import Meeting
+    from app.models.enums import MeetingStatus
+    meeting = await db.scalar(select(Meeting).where(Meeting.id == job.meeting_id))
+    if meeting:
+        pass # Meeting remains PENDING during PROCESSING until COMPLETED or FAILED
     
     await db.flush()
     return job
@@ -179,12 +216,23 @@ async def retry_job(db: AsyncSession, arq_pool, job_id: uuid.UUID) -> Processing
         )
     except Exception as e:
         import logging
-        from app.utils.exceptions import InternalServerError
         logging.getLogger(__name__).error(f"Failed to enqueue retry for job {job_id}: {e}")
         
-        await update_job_status(db, job_id, JobStatus.FAILED, error_code="QUEUE_ENQUEUE_FAILED", error_message=str(e))
+        # Rollback the QUEUED transition since enqueue failed
+        await db.rollback()
+        
+        # Reload and set to FAILED
+        stmt = select(ProcessingJob).where(ProcessingJob.id == job_id).with_for_update()
+        result = await db.execute(stmt)
+        failed_job = result.scalar_one()
+        
+        failed_job.status = JobStatus.FAILED.value
+        failed_job.error_code = "QUEUE_ENQUEUE_FAILED"
+        failed_job.error_message = str(e)
+        failed_job.completed_at = datetime.now(timezone.utc)
+        
         await db.commit()
-        await db.refresh(job)
+        await db.refresh(failed_job)
         
         raise InternalServerError(f"Failed to enqueue processing job: {str(e)}")
         

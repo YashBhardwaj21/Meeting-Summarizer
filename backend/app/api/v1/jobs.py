@@ -13,6 +13,18 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.get(
+    "/meeting/{meeting_id}",
+    response_model=JobResponse,
+    summary="Get active job by meeting ID",
+)
+async def get_job_by_meeting_endpoint(
+    meeting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieve the most relevant background job for a meeting."""
+    return await job_service.get_latest_job_for_meeting(db, meeting_id)
+
+@router.get(
     "/{job_id}",
     response_model=JobResponse,
     summary="Get job status",

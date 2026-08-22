@@ -63,7 +63,7 @@ async def run_transcription_pipeline(
     
     try:
         # Download file to local storage
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="downloading")
         
         from app.services import storage_service
@@ -79,7 +79,7 @@ async def run_transcription_pipeline(
             raise PermanentProcessingError(f"Downloaded file size mismatch. Expected {file_record.size_bytes}, got {local_path_obj.stat().st_size}.", error_code="DOWNLOAD_CORRUPT")
         
         # 1. Media Inspection
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="media_inspection")
         
         t0 = time.monotonic()
@@ -89,7 +89,7 @@ async def run_transcription_pipeline(
         metrics["media_size_bytes"] = media_metadata.size_bytes
         
         # 2. Audio Extraction
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="audio_extraction")
         
         t1 = time.monotonic()
@@ -98,7 +98,7 @@ async def run_transcription_pipeline(
         metrics["audio_extraction_time_ms"] = int((time.monotonic() - t1) * 1000)
         
         # 3. Transcription
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="transcription")
         
         t2 = time.monotonic()
@@ -120,7 +120,7 @@ async def run_transcription_pipeline(
         metrics["asr_wall_time_ms"] = int((time.monotonic() - t2) * 1000)
         
         # 4. Diarization
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="diarization")
         
         diarization_provider = get_diarization_provider()
@@ -129,7 +129,7 @@ async def run_transcription_pipeline(
             pass
             
         # 5. Persist Transcript (DURABLE CHECKPOINT)
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="persist_transcript")
         
         t3 = time.monotonic()
@@ -143,7 +143,7 @@ async def run_transcription_pipeline(
         await db.commit()
         
         # 6. Semantic Chunking
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="chunking")
         
         t4 = time.monotonic()
@@ -158,7 +158,7 @@ async def run_transcription_pipeline(
         metrics["chunking_time_ms"] = int((time.monotonic() - t4) * 1000)
         
         # 7. Embedding
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="embedding")
         
         t5 = time.monotonic()
@@ -178,7 +178,7 @@ async def run_transcription_pipeline(
         metrics["embedding_wall_time_ms"] = int((time.monotonic() - t5) * 1000)
         
         # 8. Persist Index (DURABLE CHECKPOINT)
-        if await _check_cancelled(db, job_id): return
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="persist_index")
         
         t6 = time.monotonic()
