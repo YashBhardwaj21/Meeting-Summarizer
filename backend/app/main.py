@@ -99,6 +99,25 @@ async def ready():
     except Exception as exc:
         checks["postgres"] = f"error: {exc}"
 
+    # Check MinIO
+    try:
+        from app.services.storage_service import get_boto3_client, settings as storage_settings
+        s3 = get_boto3_client()
+        s3.head_bucket(Bucket=storage_settings.s3_bucket_name)
+        checks["minio"] = "ok"
+    except Exception as exc:
+        checks["minio"] = f"error: {exc}"
+
+    # Check ARQ
+    try:
+        if hasattr(app.state, "arq_pool"):
+            await app.state.arq_pool.ping()
+            checks["arq"] = "ok"
+        else:
+            checks["arq"] = "error: arq_pool not initialized"
+    except Exception as exc:
+        checks["arq"] = f"error: {exc}"
+
     all_ok = all(v == "ok" for v in checks.values())
     return {
         "status": "ok" if all_ok else "degraded",
