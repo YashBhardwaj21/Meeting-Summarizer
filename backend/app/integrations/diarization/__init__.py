@@ -12,5 +12,5 @@ def get_diarization_provider() -> Optional[DiarizationProvider]:
     if not settings.diarization_enabled:
         return None
         
-    # We will implement providers here later.
-    raise NotImplementedError("Diarization providers are not yet implemented")
+    from app.integrations.diarization.pyannote_diarization import PyannoteDiarizationProvider
+    return PyannoteDiarizationProvider()

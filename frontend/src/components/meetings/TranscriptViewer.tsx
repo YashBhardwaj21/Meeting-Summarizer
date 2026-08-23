@@ -24,34 +24,6 @@ export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewer
   const isReady = status === 'completed' || status === 'ready';
   const { segments, loading, error, hasMore, loadMore, total } = useTranscripts(chatId, meetingId, isReady);
 
-  const groupedSegments = React.useMemo(() => {
-    const groups: { id: string; speaker: string; startTime: number; text: string }[] = [];
-    let currentGroup: any = null;
-
-    for (const segment of segments) {
-      let rawSpeaker = segment.speaker || 'SPEAKER_00';
-      const match = rawSpeaker.match(/SPEAKER_(\d+)/i) || rawSpeaker.match(/speaker_(\d+)/i);
-      let displaySpeaker = rawSpeaker;
-      if (match) {
-        displaySpeaker = `Speaker ${parseInt(match[1], 10) + 1}`;
-      }
-
-      if (currentGroup && currentGroup.speaker === displaySpeaker) {
-        currentGroup.text += ' ' + segment.text;
-      } else {
-        if (currentGroup) groups.push(currentGroup);
-        currentGroup = {
-          id: segment.id,
-          speaker: displaySpeaker,
-          startTime: segment.start_time,
-          text: segment.text
-        };
-      }
-    }
-    if (currentGroup) groups.push(currentGroup);
-    return groups;
-  }, [segments]);
-
   if (error) {
     return <div className="upload-error">{error.message}</div>;
   }
@@ -82,26 +54,33 @@ export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewer
     );
   }
 
-
-
   return (
-    <div className="transcript-container" style={{ maxHeight: '480px', overflowY: 'auto', padding: '16px' }}>
-      <div className="transcript-segments" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {groupedSegments.map((group) => (
-          <div key={group.id} className="transcript-segment-group" style={{ display: 'flex', gap: '16px' }}>
-            <div className="segment-meta" style={{ width: '80px', flexShrink: 0 }}>
-              <div className="segment-speaker" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)' }}>
-                {group.speaker}
+    <div className="transcript-container neo-panel" style={{ maxHeight: '480px', overflowY: 'auto', padding: '16px', border: 'var(--border)', backgroundColor: 'var(--color-surface)', position: 'relative' }}>
+      <div className="transcript-segments" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {segments.map((segment) => {
+          let rawSpeaker = segment.speaker || 'Unknown';
+          const match = rawSpeaker.match(/SPEAKER_(\d+)/i) || rawSpeaker.match(/speaker_(\d+)/i);
+          let displaySpeaker = rawSpeaker;
+          if (match) {
+            displaySpeaker = `Speaker ${parseInt(match[1], 10) + 1}`;
+          }
+
+          return (
+            <div key={segment.id} className="transcript-segment-item" style={{ display: 'flex', gap: '16px' }}>
+              <div className="segment-meta" style={{ width: '80px', flexShrink: 0 }}>
+                <div className="segment-speaker" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text)' }}>
+                  {displaySpeaker}
+                </div>
+                <div className="segment-time" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  {formatTime(segment.start_time)}
+                </div>
               </div>
-              <div className="segment-time" style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-                {formatTime(group.startTime)}
+              <div className="segment-text" style={{ flex: 1, fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--color-text)' }}>
+                {segment.text}
               </div>
             </div>
-            <div className="segment-text" style={{ flex: 1, fontSize: '0.95rem', lineHeight: '1.6', color: 'var(--color-text)' }}>
-              {group.text}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {hasMore && (

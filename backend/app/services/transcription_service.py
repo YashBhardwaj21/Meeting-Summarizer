@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from fuzzywuzzy import fuzz
 
 from app.integrations.asr.base import ASRProvider, ASRSegment
+from app.integrations.diarization.base import SpeakerSegment
 from app.services.media_service import split_audio, AudioChunk
 
 logger = logging.getLogger(__name__)
@@ -170,3 +171,48 @@ def _merge_and_deduplicate(
     final_segments.sort(key=lambda s: s.start_time)
     
     return final_segments
+
+
+def align_speakers(
+    asr_segments: list[CanonicalSegment], 
+    speaker_segments: list[SpeakerSegment]
+) -> list[CanonicalSegment]:
+    """
+    Align ASR segments with Speaker Diarization segments using overlap.
+    Currently uses max-overlap to assign a speaker to the whole Whisper segment.
+    Designed so that it can be enhanced to split Whisper segments later.
+    """
+    if not asr_segments or not speaker_segments:
+        return asr_segments
+
+    # Pre-normalize speaker names (SPEAKER_00 -> Speaker 1)
+    # We create a deterministic mapping based on the order they appear
+    speaker_mapping = {}
+    next_speaker_idx = 1
+    for spk in speaker_segments:
+        if spk.speaker not in speaker_mapping:
+            speaker_mapping[spk.speaker] = f"Speaker {next_speaker_idx}"
+            next_speaker_idx += 1
+
+    aligned_segments = []
+    for asr_seg in asr_segments:
+        best_overlap = 0.0
+        best_speaker = None
+        
+        # Calculate overlap for each speaker segment
+        for spk_seg in speaker_segments:
+            # Overlap formula: min(end1, end2) - max(start1, start2)
+            overlap = min(asr_seg.end_time, spk_seg.end) - max(asr_seg.start_time, spk_seg.start)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_speaker = spk_seg.speaker
+                
+        # Assign best speaker
+        if best_speaker:
+            asr_seg.speaker = speaker_mapping.get(best_speaker, best_speaker)
+        else:
+            asr_seg.speaker = None
+            
+        aligned_segments.append(asr_seg)
+        
+    return aligned_segments

@@ -60,7 +60,9 @@ class Settings(BaseSettings):
     asr_max_retries: int = 3
 
     # ── Diarization ──────────────────────────────────────────────────
-    diarization_enabled: bool = False
+    diarization_enabled: bool = True
+    diarization_model: str = "pyannote/speaker-diarization-community-1"
+    hf_token: str = ""
 
     # ── Embeddings ───────────────────────────────────────────────────
     openai_api_key: str = ""

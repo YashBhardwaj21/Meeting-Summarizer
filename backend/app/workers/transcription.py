@@ -16,7 +16,7 @@ from app.models.file import File
 from app.services import job_service
 from app.services.media_service import inspect_media, extract_audio
 from app.integrations.asr import get_asr_provider
-from app.services.transcription_service import transcribe_audio
+from app.services.transcription_service import transcribe_audio, align_speakers
 from app.integrations.diarization import get_diarization_provider
 from app.services.transcript_service import replace_meeting_transcript, replace_meeting_chunks
 from app.services.token_counter import TiktokenCounter
@@ -125,8 +125,11 @@ async def run_transcription_pipeline(
         
         diarization_provider = get_diarization_provider()
         if diarization_provider:
-            # Here we would run diarization and align speakers.
-            pass
+            diarization_segments = await diarization_provider.diarize(flac_path)
+            canonical_segments = align_speakers(
+                canonical_segments,
+                diarization_segments
+            )
             
         # 5. Persist Transcript (DURABLE CHECKPOINT)
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
