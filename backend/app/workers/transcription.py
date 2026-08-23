@@ -82,6 +82,7 @@ async def run_transcription_pipeline(
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="media_inspection")
         
+        logger.info("[PIPELINE] Starting media inspection")
         t0 = time.monotonic()
         media_metadata = await inspect_media(local_input_path)
         metrics["media_inspection_time_ms"] = int((time.monotonic() - t0) * 1000)
@@ -92,6 +93,7 @@ async def run_transcription_pipeline(
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="audio_extraction")
         
+        logger.info("[PIPELINE] Starting audio extraction")
         t1 = time.monotonic()
         flac_path = str(temp_dir / "normalized.flac")
         await extract_audio(local_input_path, flac_path)
@@ -101,6 +103,7 @@ async def run_transcription_pipeline(
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="transcription")
         
+        logger.info("[PIPELINE] Starting transcription")
         t2 = time.monotonic()
         asr_provider = get_asr_provider()
         
@@ -118,11 +121,14 @@ async def run_transcription_pipeline(
             concurrency=settings.asr_concurrency
         )
         metrics["asr_wall_time_ms"] = int((time.monotonic() - t2) * 1000)
+        logger.info(f"[PIPELINE] Finished transcription in {metrics['asr_wall_time_ms']/1000}s")
         
         # 4. Diarization
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="diarization")
         
+        logger.info("[PIPELINE] Starting diarization")
+        t_diarization = time.monotonic()
         diarization_provider = get_diarization_provider()
         if diarization_provider:
             diarization_segments = await diarization_provider.diarize(flac_path)
@@ -130,6 +136,11 @@ async def run_transcription_pipeline(
                 canonical_segments,
                 diarization_segments
             )
+        metrics["diarization_wall_time_ms"] = int((time.monotonic() - t_diarization) * 1000)
+        metrics["diarization"] = {
+            "provider": settings.diarization_model,
+        }
+        logger.info(f"[PIPELINE] Finished diarization in {metrics['diarization_wall_time_ms']/1000}s")
             
         # 5. Persist Transcript (DURABLE CHECKPOINT)
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
@@ -164,6 +175,7 @@ async def run_transcription_pipeline(
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="embedding")
         
+        logger.info("[PIPELINE] Starting embedding")
         t5 = time.monotonic()
         embedding_provider = get_embedding_provider()
         
@@ -179,6 +191,7 @@ async def run_transcription_pipeline(
             batch_size=settings.embedding_batch_size
         )
         metrics["embedding_wall_time_ms"] = int((time.monotonic() - t5) * 1000)
+        logger.info(f"[PIPELINE] Finished embedding in {metrics['embedding_wall_time_ms']/1000}s")
         
         # 8. Persist Index (DURABLE CHECKPOINT)
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()

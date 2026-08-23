@@ -16,6 +16,7 @@ from app.schemas.chat import (
 from app.models.chat_message import ChatMessage
 from app.services import chat_service
 from app.services.rag_service import rag_service
+from app.config import get_settings
 from sqlalchemy import select
 
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -94,6 +95,20 @@ async def ask_chat_question_endpoint(
     # Ensure chat exists
     await chat_service.get_chat(db, chat_id)
     
+    settings = get_settings()
+    
+    # Load recent conversation history
+    history_stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.chat_id == chat_id)
+        .where(ChatMessage.role.in_(["user", "assistant"]))
+        .order_by(ChatMessage.created_at.desc())
+        .limit(settings.chat_history_turns)
+    )
+    history_res = await db.execute(history_stmt)
+    history_msgs = list(reversed(history_res.scalars().all()))
+    history = [{"role": msg.role, "content": msg.content} for msg in history_msgs]
+    
     # Save user message
     user_msg = ChatMessage(
         chat_id=chat_id,
@@ -105,7 +120,7 @@ async def ask_chat_question_endpoint(
     await db.refresh(user_msg)
     
     # Get RAG response
-    answer, sources = await rag_service.ask_question(db, chat_id, request.question, request.limit)
+    answer, sources = await rag_service.ask_question(db, chat_id, request.question, request.limit, history)
     
     # Save assistant message
     assistant_msg = ChatMessage(

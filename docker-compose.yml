@@ -55,6 +55,7 @@ services:
     volumes:
       - ./backend:/app
       - ./models:/app/models
+      - huggingface_cache:/root/.cache/huggingface
     env_file:
       - .env
     depends_on:
@@ -73,6 +74,7 @@ services:
     volumes:
       - ./backend:/app
       - ./models:/app/models
+      - huggingface_cache:/root/.cache/huggingface
     env_file:
       - .env
     depends_on:
@@ -98,3 +100,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  huggingface_cache:

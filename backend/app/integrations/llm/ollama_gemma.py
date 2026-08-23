@@ -13,8 +13,9 @@ class OllamaGemmaProvider:
     def __init__(self):
         settings = get_settings()
         self.base_url = settings.ollama_base_url.rstrip("/")
-        self._model = "gemma3:4b"
-        self._timeout = 120.0
+        self._model = settings.llm_model
+        self._temperature = settings.llm_temperature
+        self._timeout = settings.llm_timeout_seconds
         
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
@@ -25,18 +26,28 @@ class OllamaGemmaProvider:
     def model_name(self) -> str:
         return self._model
         
-    async def generate_response(self, system_prompt: str, user_prompt: str) -> str:
+    async def generate_response(
+        self, 
+        system_prompt: str, 
+        user_prompt: str,
+        history: list[dict[str, str]] | None = None
+    ) -> str:
         """Generate a single response (non-streaming) using the chat API."""
         try:
+            messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                messages.extend(history)
+            messages.append({"role": "user", "content": user_prompt})
+            
             response = await self.client.post(
                 "/api/chat",
                 json={
                     "model": self._model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "stream": False
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": self._temperature
+                    }
                 }
             )
             
@@ -47,6 +58,8 @@ class OllamaGemmaProvider:
             data = response.json()
             return data.get("message", {}).get("content", "")
             
+        except RetryableProcessingError:
+            raise
         except httpx.ConnectError as e:
             logger.warning(f"Ollama connection error: {e}")
             raise RetryableProcessingError(f"Ollama connection error: {e}", error_code="LLM_TIMEOUT") from e

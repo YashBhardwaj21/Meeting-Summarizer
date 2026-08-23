@@ -10,7 +10,9 @@ RUN apt-get update && \
 # Install Python dependencies (with BuildKit cache for faster rebuilds)
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu --default-timeout=100
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt --default-timeout=100
 
 # Copy application code
 COPY . .

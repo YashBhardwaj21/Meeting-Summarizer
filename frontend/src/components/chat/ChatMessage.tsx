@@ -50,9 +50,11 @@ export function ChatMessage({ message, job, onRetry }: ChatMessageProps) {
               };
               return (
                 <li key={i} className="source-item">
-                  <span className="source-time">{formatTime(source.start_time)}</span>
+                  <span className="source-time">{formatTime(source.start_time)} - {formatTime(source.end_time)}</span>
                   <span className="source-separator"> — </span>
-                  <span className="source-speaker">{source.speaker || 'Speaker'}</span>
+                  <span className="source-speaker">
+                    {source.speakers?.length ? source.speakers.join(', ') : (source.speaker || 'Unknown Speaker')}
+                  </span>
                 </li>
               );
             })}

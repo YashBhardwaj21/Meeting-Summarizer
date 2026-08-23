@@ -16,7 +16,9 @@ export interface ChatSource {
   chunk_id: string;
   start_time: number;
   end_time: number;
-  speaker: string;
+  speaker?: string | null;
+  speakers?: string[];
+  segments?: any[];
   text: string;
 }
 

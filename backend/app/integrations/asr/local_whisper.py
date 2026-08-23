@@ -49,7 +49,7 @@ class FasterWhisperProvider(ASRProvider):
     def _transcribe_sync(self, audio_path: str) -> list[ASRSegment]:
         """Synchronous wrapper for faster-whisper transcription."""
         try:
-            segments, info = self.model.transcribe(audio_path, beam_size=5, word_timestamps=True, vad_filter=True)
+            segments, info = self.model.transcribe(audio_path, beam_size=3, word_timestamps=True, vad_filter=True)
             logger.info(f"Detected language '{info.language}' with probability {info.language_probability}")
             
             asr_segments = []

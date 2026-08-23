@@ -50,12 +50,12 @@ class Settings(BaseSettings):
     # ── ASR ──────────────────────────────────────────────────────────
     groq_api_key: str = ""
     asr_provider: str = "local"
-    asr_model: str = "small"
+    asr_model: str = "base"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
-    asr_chunk_duration_seconds: int = 300
-    asr_chunk_overlap_seconds: int = 15
-    asr_concurrency: int = 4
+    asr_chunk_duration_seconds: int = 600
+    asr_chunk_overlap_seconds: int = 5
+    asr_concurrency: int = 1
     asr_timeout_seconds: int = 120
     asr_max_retries: int = 3
 
@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────────────────────
     llm_provider: str = "ollama"
     ollama_base_url: str = "http://host.docker.internal:11434"
+    llm_model: str = "gemma3:4b"
+    llm_temperature: float = 0.2
+    llm_timeout_seconds: int = 120
+    rag_top_k: int = 8
+    rag_similarity_threshold: float = 0.6
+    chat_history_turns: int = 6
 
     # ── Chunking ─────────────────────────────────────────────────────
     transcript_chunk_max_tokens: int = 800

@@ -31,6 +31,8 @@ class ChatSource(BaseModel):
     start_time: float
     end_time: float
     speaker: str | None = None
+    speakers: list[str] = []
+    segments: list[dict] = []
     text: str
 
 
