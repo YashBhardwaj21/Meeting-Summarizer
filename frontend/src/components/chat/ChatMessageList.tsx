@@ -1,16 +1,16 @@
 import React, { useEffect, useRef } from 'react';
-import { useChatMessages } from '../../hooks/useChatMessages';
+import type { ChatMessagesController } from '../../hooks/useChatMessages';
 import { useMeetingJobStatuses } from '../../hooks/useMeetingJobStatuses';
 import { ChatMessage } from './ChatMessage';
 
 interface ChatMessageListProps {
   chatId?: string;
-  chatMessages: ReturnType<typeof useChatMessages>;
+  chatMessages: ChatMessagesController;
   selectedFile?: File | null;
 }
 
 export function ChatMessageList({ chatId, chatMessages, selectedFile }: ChatMessageListProps) {
-  const { messages, loading, asking, loadMessages } = chatMessages;
+  const { messages, loading, asking, error, loadMessages } = chatMessages;
   const jobs = useMeetingJobStatuses(messages);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -35,10 +35,31 @@ export function ChatMessageList({ chatId, chatMessages, selectedFile }: ChatMess
     );
   }
 
-  if (messages.length === 0 && !asking) {
+  if (error) {
     return (
-      <div className="chat-message-list">
-        {/* Empty chat timeline */}
+      <div className="chat-message-list error-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem', color: 'var(--color-danger)' }}>
+        <p>Unable to load this chat.</p>
+        <button className="btn-secondary" onClick={() => loadMessages()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (messages.length === 0 && !asking && !loading && !error) {
+    return (
+      <div className="chat-message-list empty-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+        {!selectedFile ? (
+          <>
+            <h2>No file</h2>
+            <p>What would you like to work on?</p>
+          </>
+        ) : (
+          <>
+            <h2>File selected: {selectedFile.name}</h2>
+            <p>Ready to upload. Press Enter to upload your recording.</p>
+          </>
+        )}
       </div>
     );
   }

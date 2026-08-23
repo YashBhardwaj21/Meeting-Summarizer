@@ -2,7 +2,17 @@ import { useState, useCallback } from 'react';
 import { chatsApi } from '../api/chats';
 import type { ChatMessage } from '../types/chat';
 
-export function useChatMessages(chatId?: string) {
+export type ChatMessagesController = {
+  messages: ChatMessage[];
+  loading: boolean;
+  asking: boolean;
+  error: Error | null;
+  loadMessages: () => Promise<void>;
+  askQuestion: (question: string) => Promise<void>;
+  retryQuestion: (question: string) => void;
+};
+
+export function useChatMessages(chatId?: string): ChatMessagesController {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [asking, setAsking] = useState(false);

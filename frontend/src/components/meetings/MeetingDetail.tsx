@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useChatMessages } from '../../hooks/useChatMessages';
 import { meetingsApi } from '../../api/meetings';
 import { jobsApi } from '../../api/jobs';
 import { useJobPolling } from '../../hooks/useJobPolling';
@@ -17,6 +18,8 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | undefined>(undefined);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const chatMessages = useChatMessages(meeting?.chat_id);
 
   const fetchMeeting = useCallback(async () => {
     try {
@@ -92,7 +95,14 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
       />
       
       <div style={{ marginTop: '40px' }}>
-        <ChatComposer chatId={meeting.chat_id} />
+        {meeting.chat_id && (
+          <ChatComposer 
+            chatId={meeting.chat_id} 
+            chatMessages={chatMessages}
+            selectedFile={selectedFile}
+            setSelectedFile={setSelectedFile}
+          />
+        )}
       </div>
     </div>
   );

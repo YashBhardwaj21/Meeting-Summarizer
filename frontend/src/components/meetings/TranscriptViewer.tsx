@@ -24,6 +24,34 @@ export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewer
   const isReady = status === 'completed' || status === 'ready';
   const { segments, loading, error, hasMore, loadMore, total } = useTranscripts(chatId, meetingId, isReady);
 
+  const groupedSegments = React.useMemo(() => {
+    const groups: { id: string; speaker: string; startTime: number; text: string }[] = [];
+    let currentGroup: any = null;
+
+    for (const segment of segments) {
+      let rawSpeaker = segment.speaker || 'SPEAKER_00';
+      const match = rawSpeaker.match(/SPEAKER_(\d+)/i) || rawSpeaker.match(/speaker_(\d+)/i);
+      let displaySpeaker = rawSpeaker;
+      if (match) {
+        displaySpeaker = `Speaker ${parseInt(match[1], 10) + 1}`;
+      }
+
+      if (currentGroup && currentGroup.speaker === displaySpeaker) {
+        currentGroup.text += ' ' + segment.text;
+      } else {
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = {
+          id: segment.id,
+          speaker: displaySpeaker,
+          startTime: segment.start_time,
+          text: segment.text
+        };
+      }
+    }
+    if (currentGroup) groups.push(currentGroup);
+    return groups;
+  }, [segments]);
+
   if (error) {
     return <div className="upload-error">{error.message}</div>;
   }
@@ -54,34 +82,7 @@ export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewer
     );
   }
 
-  const groupedSegments = React.useMemo(() => {
-    const groups: { id: string; speaker: string; startTime: number; text: string }[] = [];
-    let currentGroup: any = null;
 
-    for (const segment of segments) {
-      let rawSpeaker = segment.speaker || 'SPEAKER_00';
-      // Normalize SPEAKER_00 -> Speaker 1
-      const match = rawSpeaker.match(/SPEAKER_(\d+)/i) || rawSpeaker.match(/speaker_(\d+)/i);
-      let displaySpeaker = rawSpeaker;
-      if (match) {
-        displaySpeaker = `Speaker ${parseInt(match[1], 10) + 1}`;
-      }
-
-      if (currentGroup && currentGroup.speaker === displaySpeaker) {
-        currentGroup.text += ' ' + segment.text;
-      } else {
-        if (currentGroup) groups.push(currentGroup);
-        currentGroup = {
-          id: segment.id,
-          speaker: displaySpeaker,
-          startTime: segment.start_time,
-          text: segment.text
-        };
-      }
-    }
-    if (currentGroup) groups.push(currentGroup);
-    return groups;
-  }, [segments]);
 
   return (
     <div className="transcript-container" style={{ maxHeight: '480px', overflowY: 'auto', padding: '16px' }}>

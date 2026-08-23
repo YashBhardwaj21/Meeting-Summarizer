@@ -43,7 +43,7 @@ class ChatMessageResponse(BaseModel):
     message_type: str = "text"
     content: str | None = None
     meeting_id: uuid.UUID | None = None
-    metadata_: dict | None = Field(default=None, alias="metadata")
+    metadata_: dict | None = Field(default=None, serialization_alias="metadata")
     created_at: datetime
     sources: list[ChatSource] | None = None
 

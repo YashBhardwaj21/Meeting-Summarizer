@@ -1,34 +1,28 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useUpload } from '../../hooks/useUpload';
-import { useChatMessages } from '../../hooks/useChatMessages';
 import './composer.css';
+import { useUpload } from '../../hooks/useUpload';
+import type { ChatMessagesController } from '../../hooks/useChatMessages';
 
 interface ChatComposerProps {
   chatId?: string;
+  chatMessages: ChatMessagesController;
+  selectedFile: File | null;
+  setSelectedFile: (file: File | null) => void;
   disabled?: boolean;
-  chatMessages?: ReturnType<typeof useChatMessages>;
-  selectedFile?: File | null;
-  setSelectedFile?: (file: File | null) => void;
 }
 
 export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, setSelectedFile }: ChatComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [localFile, setLocalFile] = useState<File | null>(null);
   const [text, setText] = useState('');
   
-  const file = selectedFile !== undefined ? selectedFile : localFile;
-  const setFile = setSelectedFile || setLocalFile;
-  
   const { uploadFile, isUploading, progress, status, error: uploadError } = useUpload(chatId);
-  const fallbackChatMessages = useChatMessages(chatId);
-  const actualChatMessages = chatMessages || fallbackChatMessages;
-  const { askQuestion, asking, error: askError, loadMessages } = actualChatMessages;
+  const { askQuestion, asking, error: askError, loadMessages } = chatMessages;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
-      setFile(f);
+      setSelectedFile(f);
     }
   };
 
@@ -37,26 +31,22 @@ export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, set
     if (isUploading || disabled) return;
     const f = e.dataTransfer.files?.[0];
     if (f) {
-      setFile(f);
+      setSelectedFile(f);
     }
   };
 
   const handleSubmit = async () => {
     if (isUploading || asking || disabled) return;
     
-    if (file) {
+    if (selectedFile) {
       // Upload takes priority
       try {
-        await uploadFile(file);
-        setFile(null); // Clear file, but keep text in composer!
-        await loadMessages(); // Refresh message list to show the meeting event!
+        await uploadFile(selectedFile);
+        setSelectedFile(null); // Clear file
+        await loadMessages(); // Refresh message list to show the meeting event
         
-        // If there's text, ask it as a question after upload
-        if (text.trim()) {
-          const question = text.trim();
-          setText('');
-          await askQuestion(question);
-        }
+        // We do not auto-send the text here, as the meeting processing just started.
+        // The text is preserved in the composer.
       } catch (err) {
         // Error is handled by useUpload hook
       }
@@ -77,7 +67,7 @@ export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, set
 
   const handleClearFile = () => {
     if (!isUploading) {
-      setFile(null);
+      setSelectedFile(null);
     }
   };
 
@@ -94,8 +84,8 @@ export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, set
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  const canSubmit = (file || text.trim()) && !isUploading && !asking && !disabled;
-  const showFileUI = file !== null && file !== undefined;
+  const canSubmit = (selectedFile || text.trim()) && !isUploading && !asking && !disabled;
+  const showFileUI = selectedFile !== null;
   const isBusy = isUploading || asking;
 
   return (
@@ -128,13 +118,13 @@ export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, set
             +
           </button>
 
-          {showFileUI && file && (
+          {showFileUI && selectedFile && (
             <div className="composer-file-chip">
               <span className="composer-file-chip-name">
-                🎵 {file.name}
+                🎵 {selectedFile.name}
               </span>
               {!isUploading && (
-                <span className="composer-file-chip-size">| {formatSize(file.size)}</span>
+                <span className="composer-file-chip-size">| {formatSize(selectedFile.size)}</span>
               )}
               {isUploading ? (
                 <span className="composer-file-chip-status">{progress !== null ? `${progress}%` : '...'}</span>
