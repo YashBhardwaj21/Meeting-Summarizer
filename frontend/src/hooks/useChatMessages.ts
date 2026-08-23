@@ -71,8 +71,17 @@ export function useChatMessages(chatId?: string): ChatMessagesController {
   };
 
   const retryQuestion = (question: string) => {
-    // Optionally remove the last error message before retrying
-    setMessages(prev => prev.filter(m => m.status !== 'error'));
+    // Remove the last error message and the last user message before retrying
+    setMessages(prev => {
+      const newMessages = [...prev];
+      while (newMessages.length > 0 && newMessages[newMessages.length - 1].status === 'error') {
+        newMessages.pop();
+      }
+      if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'user' && newMessages[newMessages.length - 1].content === question) {
+        newMessages.pop();
+      }
+      return newMessages;
+    });
     askQuestion(question);
   };
 

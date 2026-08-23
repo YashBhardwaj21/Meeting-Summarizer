@@ -13,7 +13,7 @@ class OllamaGemmaProvider:
     def __init__(self):
         settings = get_settings()
         self.base_url = settings.ollama_base_url.rstrip("/")
-        self._model = "gemma3:4b"  # Hardcoded for Phase 4
+        self._model = "gemma3:4b"
         self._timeout = 120.0
         
         self.client = httpx.AsyncClient(
@@ -26,14 +26,16 @@ class OllamaGemmaProvider:
         return self._model
         
     async def generate_response(self, system_prompt: str, user_prompt: str) -> str:
-        """Generate a single response (non-streaming)."""
+        """Generate a single response (non-streaming) using the chat API."""
         try:
             response = await self.client.post(
-                "/api/generate",
+                "/api/chat",
                 json={
                     "model": self._model,
-                    "system": system_prompt,
-                    "prompt": user_prompt,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
                     "stream": False
                 }
             )
@@ -43,7 +45,7 @@ class OllamaGemmaProvider:
                 raise RetryableProcessingError(f"Ollama server error {response.status_code}", error_code="LLM_PROVIDER_ERROR")
 
             data = response.json()
-            return data.get("response", "")
+            return data.get("message", {}).get("content", "")
             
         except httpx.ConnectError as e:
             logger.warning(f"Ollama connection error: {e}")
@@ -52,38 +54,5 @@ class OllamaGemmaProvider:
             logger.exception("Unexpected error during Ollama generation")
             raise RetryableProcessingError(f"Unexpected LLM error: {e}", error_code="LLM_PROVIDER_ERROR") from e
             
-    async def generate_response_stream(self, system_prompt: str, user_prompt: str) -> AsyncGenerator[str, None]:
-        """Stream a response back."""
-        try:
-            async with self.client.stream(
-                "POST", 
-                "/api/generate", 
-                json={
-                    "model": self._model,
-                    "system": system_prompt,
-                    "prompt": user_prompt,
-                    "stream": True
-                }
-            ) as response:
-                if response.status_code != 200:
-                    raise RetryableProcessingError(f"Ollama server error {response.status_code}", error_code="LLM_PROVIDER_ERROR")
-                    
-                import json
-                async for line in response.aiter_lines():
-                    if not line:
-                        continue
-                    try:
-                        data = json.loads(line)
-                        if "response" in data:
-                            yield data["response"]
-                        if data.get("done", False):
-                            break
-                    except json.JSONDecodeError:
-                        continue
-                        
-        except Exception as e:
-            logger.exception("Unexpected error during Ollama stream")
-            raise RetryableProcessingError(f"Unexpected LLM error: {e}", error_code="LLM_PROVIDER_ERROR") from e
-
     async def close(self):
         await self.client.aclose()

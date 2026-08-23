@@ -10,7 +10,7 @@ from app.models.meeting import Meeting
 from app.models.enums import MeetingStatus
 from app.utils.exceptions import NotFoundError, PermanentProcessingError
 from app.integrations.embeddings import get_embedding_provider
-from app.integrations.llm.ollama_llm import OllamaGemmaProvider
+from app.integrations.llm.ollama_gemma import OllamaGemmaProvider
 
 class RAGService:
     """Service to handle RAG (Retrieval-Augmented Generation) queries against meetings."""
@@ -36,6 +36,7 @@ class RAGService:
         stmt = (
             select(TranscriptChunk)
             .where(TranscriptChunk.chat_id == chat_id)
+            .where(TranscriptChunk.embedding.is_not(None))
             .order_by(TranscriptChunk.embedding.cosine_distance(question_embedding))
             .limit(limit)
         )
@@ -49,27 +50,37 @@ class RAGService:
         # 3. Construct the prompt
         context_parts = []
         for chunk in chunks:
-            # Optionally include timestamps if available, e.g., [MM:SS]
-            # Since we just have chunk text, we provide it directly.
+            # Look up speaker from the database
+            speaker = None
+            if chunk.segment_ids:
+                seg_stmt = select(TranscriptSegment.speaker).where(TranscriptSegment.id == chunk.segment_ids[0])
+                seg_res = await db.execute(seg_stmt)
+                speaker = seg_res.scalar_one_or_none()
+            
+            speaker_label = speaker or "Unknown"
+            
+            # Format time as MM:SS
             start_min = int(chunk.start_time // 60)
             start_sec = int(chunk.start_time % 60)
-            context_parts.append(f"[{start_min:02d}:{start_sec:02d}] {chunk.text}")
+            end_min = int(chunk.end_time // 60)
+            end_sec = int(chunk.end_time % 60)
+            
+            time_block = f"{start_min:02d}:{start_sec:02d}-{end_min:02d}:{end_sec:02d}"
+            
+            context_parts.append(f"[{time_block} | {speaker_label}]\n{chunk.text}")
             
         context_block = "\n\n".join(context_parts)
         
         system_prompt = (
-            "You are a helpful assistant answering questions based on meeting transcripts. "
-            "Use the provided context to answer the user's question accurately. "
-            "If the answer is not in the context, say you don't know based on the provided transcripts. "
-            "Include timestamp references like [MM:SS] when quoting or referring to specific points."
+            "You answer questions only from the supplied meeting transcript context. "
+            "If the context does not contain the answer, say you do not know. "
+            "Do not invent facts."
         )
         
         user_prompt = (
-            f"Context from meetings:\n"
-            f"---\n"
-            f"{context_block}\n"
-            f"---\n\n"
-            f"Question: {question}"
+            f"CONTEXT:\n"
+            f"{context_block}\n\n"
+            f"USER: {question}"
         )
         
         # 4. Generate the answer
@@ -86,8 +97,8 @@ class RAGService:
                     speaker = seg_res.scalar_one_or_none()
                     
                 sources.append({
-                    "meeting_id": chunk.meeting_id,
-                    "chunk_id": chunk.id,
+                    "meeting_id": str(chunk.meeting_id),
+                    "chunk_id": str(chunk.id),
                     "start_time": chunk.start_time,
                     "end_time": chunk.end_time,
                     "speaker": speaker,

@@ -10,7 +10,7 @@ interface ChatMessageListProps {
 }
 
 export function ChatMessageList({ chatId, chatMessages, selectedFile }: ChatMessageListProps) {
-  const { messages, loading, asking, error, loadMessages } = chatMessages;
+  const { messages, loading, asking, error, loadMessages, retryQuestion } = chatMessages;
   const jobs = useMeetingJobStatuses(messages);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +67,12 @@ export function ChatMessageList({ chatId, chatMessages, selectedFile }: ChatMess
   return (
     <div className="chat-message-list">
       {messages.map(msg => (
-        <ChatMessage key={msg.id} message={msg} job={msg.meeting_id ? jobs[msg.meeting_id] : undefined} />
+        <ChatMessage 
+          key={msg.id} 
+          message={msg} 
+          job={msg.meeting_id ? jobs[msg.meeting_id] : undefined} 
+          onRetry={retryQuestion}
+        />
       ))}
       {asking && (
         <div className="chat-message message-assistant asking">
