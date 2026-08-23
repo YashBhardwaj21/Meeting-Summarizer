@@ -58,6 +58,7 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             
             try:
                 job = await job_service.claim_job(db, job_id, job_try)
+                await db.commit()
                 logger.info(f"[WORKER] claimed {job_id}")
             except NotFoundError:
                 logger.info(f"Job {job_id} not found. Skipping.")
@@ -243,6 +244,6 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     on_startup = startup
     on_shutdown = shutdown
-    max_jobs = 10
+    max_jobs = 1
     allow_abort_jobs = True
     job_timeout = settings.processing_job_timeout_seconds

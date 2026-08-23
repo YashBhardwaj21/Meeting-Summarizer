@@ -45,6 +45,7 @@ async def transcribe_audio(
     chunk_duration: int,
     overlap: int,
     concurrency: int,
+    metadata: "MediaMetadata | None" = None,
 ) -> list[CanonicalSegment]:
     """
     1. Split audio into overlapping chunks
@@ -53,7 +54,7 @@ async def transcribe_audio(
     4. Deduplicate overlap regions
     """
     
-    chunks = await split_audio(audio_path, chunk_duration, overlap)
+    chunks = await split_audio(audio_path, chunk_duration, overlap, metadata=metadata)
     
     # Process chunks in parallel with a semaphore
     semaphore = asyncio.Semaphore(concurrency)

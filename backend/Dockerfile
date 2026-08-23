@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ RUN apt-get update && \
 # Install Python dependencies (with BuildKit cache for faster rebuilds)
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu --default-timeout=100
+    pip install torch==2.0.1 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cpu --default-timeout=100
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt --default-timeout=100
 

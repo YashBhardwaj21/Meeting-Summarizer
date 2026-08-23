@@ -119,12 +119,14 @@ async def inspect_media(file_path: str) -> MediaMetadata:
     )
 
 
-async def extract_audio(input_path: str, output_path: str) -> str:
+async def extract_audio(input_path: str, output_path: str, metadata: MediaMetadata | None = None) -> str:
     """
     Extract first audio stream to 16kHz mono FLAC.
     Raises NO_AUDIO_TRACK if no audio is present.
     """
-    metadata = await inspect_media(input_path)
+    if metadata is None:
+        metadata = await inspect_media(input_path)
+        
     if not metadata.has_audio:
         raise PermanentProcessingError("File contains no audio tracks", error_code="NO_AUDIO_TRACK")
         
@@ -150,19 +152,14 @@ async def split_audio(
     audio_path: str,
     chunk_duration: int,
     overlap: int,
+    metadata: MediaMetadata | None = None
 ) -> list[AudioChunk]:
     """
     Split normalized audio into overlapping chunks.
-    This implementation uses FFmpeg's segment muxer. For exact overlaps,
-    it might require complex filter graphs, but since the ASR stage deduplicates
-    based on timestamps, we can just split sequentially without overlap at the audio level,
-    OR use multiple FFmpeg passes for exact overlap if strictly required by ASR.
-    
-    Given ASR providers handle overlap poorly at boundaries without context,
-    the standard way to get overlapping chunks via ffmpeg is a bit tricky, but here
-    we will slice explicitly for each chunk, as it is robust for audio < 2 hours.
     """
-    metadata = await inspect_media(audio_path)
+    if metadata is None:
+        metadata = await inspect_media(audio_path)
+        
     total_duration = metadata.duration_seconds
     
     if total_duration <= chunk_duration:
@@ -176,26 +173,21 @@ async def split_audio(
     output_dir = input_path.parent
     
     while current_start < total_duration:
-        # Calculate actual duration for this chunk (might be shorter at the end)
-        actual_duration = min(chunk_duration, total_duration - current_start)
+        # Add overlap to the duration of the chunk, except for the last chunk
+        actual_duration = min(chunk_duration + overlap, total_duration - current_start)
         if actual_duration <= 0:
             break
             
         chunk_file = str(output_dir / f"{base_name}_chunk{chunk_index:03d}.flac")
         
-        # ffmpeg -y -ss START -i INPUT -t DURATION -c copy OUTPUT
-        # Note: since input is already FLAC (intra-frame), stream copy (-c copy) 
-        # might be tricky with exact timestamps. We will re-encode to FLAC to ensure
-        # exact boundaries. It's fast enough.
+        # -c copy since we are extracting from FLAC to FLAC. It's much faster.
         await _run_command(
             "ffmpeg",
             "-y",
             "-ss", str(current_start),
             "-i", audio_path,
             "-t", str(actual_duration),
-            "-ar", "16000",
-            "-ac", "1",
-            "-c:a", "flac",
+            "-c", "copy",
             chunk_file
         )
         
@@ -203,12 +195,10 @@ async def split_audio(
         if not Path(chunk_file).exists():
             raise PermanentProcessingError(f"Failed to generate chunk {chunk_index}", error_code="FFMPEG_FAILED")
             
-        chunk_meta = await inspect_media(chunk_file)
-        
         chunks.append(AudioChunk(
             path=chunk_file,
             offset_seconds=current_start,
-            duration_seconds=chunk_meta.duration_seconds
+            duration_seconds=actual_duration
         ))
         
         chunk_index += 1

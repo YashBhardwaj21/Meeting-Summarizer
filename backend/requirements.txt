@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
 sqlalchemy[asyncio]==2.0.41
@@ -18,4 +19,8 @@ pgvector>=0.3.0
 tiktoken>=0.7.0
 fuzzywuzzy>=0.18.0
 faster-whisper>=1.0.0
-pyannote.audio==4.0.1
+pyannote.audio==3.3.2
+torch==2.0.1
+torchaudio==2.0.2
+numpy<2.0.0
+huggingface-hub<0.23.0

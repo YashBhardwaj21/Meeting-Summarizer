@@ -65,6 +65,7 @@ async def run_transcription_pipeline(
         # Download file to local storage
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="downloading")
+        await db.commit()
         
         from app.services import storage_service
         local_input_path = str(temp_dir / f"input{Path(file_record.filename).suffix}")
@@ -81,6 +82,7 @@ async def run_transcription_pipeline(
         # 1. Media Inspection
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="media_inspection")
+        await db.commit()
         
         logger.info("[PIPELINE] Starting media inspection")
         t0 = time.monotonic()
@@ -92,16 +94,18 @@ async def run_transcription_pipeline(
         # 2. Audio Extraction
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="audio_extraction")
+        await db.commit()
         
         logger.info("[PIPELINE] Starting audio extraction")
         t1 = time.monotonic()
         flac_path = str(temp_dir / "normalized.flac")
-        await extract_audio(local_input_path, flac_path)
+        await extract_audio(local_input_path, flac_path, metadata=media_metadata)
         metrics["audio_extraction_time_ms"] = int((time.monotonic() - t1) * 1000)
         
         # 3. Transcription
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="transcription")
+        await db.commit()
         
         logger.info("[PIPELINE] Starting transcription")
         t2 = time.monotonic()
@@ -118,14 +122,28 @@ async def run_transcription_pipeline(
             provider=asr_provider,
             chunk_duration=settings.asr_chunk_duration_seconds,
             overlap=settings.asr_chunk_overlap_seconds,
-            concurrency=settings.asr_concurrency
+            concurrency=settings.asr_concurrency,
+            metadata=media_metadata
         )
         metrics["asr_wall_time_ms"] = int((time.monotonic() - t2) * 1000)
         logger.info(f"[PIPELINE] Finished transcription in {metrics['asr_wall_time_ms']/1000}s")
         
+        # 3.5. Persist Transcript (EARLY CHECKPOINT)
+        if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
+        await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="persist_transcript_early")
+        await db.commit()
+        
+        t3 = time.monotonic()
+        db_segments = await replace_meeting_transcript(db, meeting.id, canonical_segments)
+        
+        from app.models.enums import MeetingStatus
+        meeting.status = MeetingStatus.TRANSCRIPT_READY.value
+        await db.commit()
+        
         # 4. Diarization
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="diarization")
+        await db.commit()
         
         logger.info("[PIPELINE] Starting diarization")
         t_diarization = time.monotonic()
@@ -142,23 +160,21 @@ async def run_transcription_pipeline(
         }
         logger.info(f"[PIPELINE] Finished diarization in {metrics['diarization_wall_time_ms']/1000}s")
             
-        # 5. Persist Transcript (DURABLE CHECKPOINT)
+        # 5. Persist Transcript (UPDATE SPEAKERS)
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
-        await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="persist_transcript")
+        await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="persist_transcript_speakers")
+        await db.commit()
         
-        t3 = time.monotonic()
         db_segments = await replace_meeting_transcript(db, meeting.id, canonical_segments)
         # We need the UUIDs assigned by the database for the next step
         segment_uuids = [seg.id for seg in db_segments]
         metrics["transcript_persist_time_ms"] = int((time.monotonic() - t3) * 1000)
-        
-        from app.models.enums import MeetingStatus
-        meeting.status = MeetingStatus.TRANSCRIPT_READY.value
         await db.commit()
         
         # 6. Semantic Chunking
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="chunking")
+        await db.commit()
         
         t4 = time.monotonic()
         token_counter = TiktokenCounter(settings.tokenizer_encoding)
@@ -174,6 +190,7 @@ async def run_transcription_pipeline(
         # 7. Embedding
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="embedding")
+        await db.commit()
         
         logger.info("[PIPELINE] Starting embedding")
         t5 = time.monotonic()
@@ -196,6 +213,7 @@ async def run_transcription_pipeline(
         # 8. Persist Index (DURABLE CHECKPOINT)
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="persist_index")
+        await db.commit()
         
         t6 = time.monotonic()
         await replace_meeting_chunks(
