@@ -41,28 +41,42 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 export const api = {
   get: async <T>(endpoint: string, options?: RequestInit): Promise<T> => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
-    return handleResponse<T>(response);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
+      return handleResponse<T>(response);
+    } catch (err) {
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        throw new Error(`Failed to fetch on GET ${endpoint}. Backend may be unreachable.`);
+      }
+      throw err;
+    }
   },
 
   post: async <T>(endpoint: string, body?: any, options?: RequestInit): Promise<T> => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return handleResponse<T>(response);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return handleResponse<T>(response);
+    } catch (err) {
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        throw new Error(`Failed to fetch on POST ${endpoint}. Backend may be unreachable.`);
+      }
+      throw err;
+    }
   },
 
   put: async <T>(endpoint: string, body?: any, options?: RequestInit): Promise<T> => {

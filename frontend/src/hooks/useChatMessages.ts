@@ -27,7 +27,9 @@ export function useChatMessages(chatId?: string) {
     
     const userMessage: ChatMessage = {
       id: `temp-${Date.now()}`,
+      chat_id: chatId,
       role: 'user',
+      message_type: 'text',
       content: question,
       created_at: new Date().toISOString(),
       status: 'complete'
@@ -44,7 +46,9 @@ export function useChatMessages(chatId?: string) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to get an answer';
       const errorResponse: ChatMessage = {
         id: `error-${Date.now()}`,
+        chat_id: chatId,
         role: 'assistant',
+        message_type: 'text',
         content: `Error: ${errorMsg}. Please try asking again.`,
         created_at: new Date().toISOString(),
         status: 'error'

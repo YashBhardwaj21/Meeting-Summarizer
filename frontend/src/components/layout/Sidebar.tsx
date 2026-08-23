@@ -166,22 +166,22 @@ export function Sidebar() {
       
       {deleteModalOpen && chatToDelete && (
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="modal-content" style={{ backgroundColor: 'var(--color-surface)', padding: '24px', borderRadius: '8px', maxWidth: '400px', width: '100%', border: '1px solid var(--border)' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'var(--text-primary)' }}>Delete Workspace</h3>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.875rem', lineHeight: '1.5' }}>
+          <div className="modal-content" style={{ backgroundColor: 'var(--color-bg)', padding: '24px', borderRadius: 'var(--radius-sm)', maxWidth: '400px', width: '100%', border: 'var(--border)', boxShadow: '4px 4px 0px var(--color-border)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', color: 'var(--color-text)' }}>Delete Workspace</h3>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '16px', fontSize: '1rem', lineHeight: '1.5' }}>
               Are you sure you want to delete workspace "{chatToDelete.title || 'Untitled Workspace'}"?
             </p>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '0.875rem', lineHeight: '1.5' }}>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '0.9rem', lineHeight: '1.5' }}>
               This will permanently cancel running jobs and delete all associated meetings, transcripts, and media files.
             </p>
             {deleteError && (
-              <div style={{ color: 'var(--color-danger)', marginBottom: '16px', fontSize: '0.875rem', padding: '8px', backgroundColor: 'var(--color-surface-hover)', borderRadius: '4px' }}>
+              <div style={{ color: 'var(--color-red)', marginBottom: '16px', fontSize: '0.9rem', padding: '8px', border: 'var(--border)', backgroundColor: 'rgba(255,0,0,0.1)' }}>
                 {deleteError}
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button onClick={cancelDelete} disabled={isDeleting} className="btn-secondary" style={{ padding: '6px 16px' }}>Cancel</button>
-              <button onClick={confirmDelete} disabled={isDeleting} className="btn-primary" style={{ padding: '6px 16px', backgroundColor: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+              <button onClick={cancelDelete} disabled={isDeleting} className="btn-secondary" style={{ padding: '8px 16px', border: 'var(--border)', backgroundColor: 'var(--color-surface)', boxShadow: '2px 2px 0px var(--color-border)', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+              <button onClick={confirmDelete} disabled={isDeleting} className="btn-primary" style={{ padding: '8px 16px', border: 'var(--border)', backgroundColor: 'var(--color-red)', color: 'white', boxShadow: '2px 2px 0px var(--color-border)', cursor: 'pointer', fontWeight: 'bold' }}>
                 {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>

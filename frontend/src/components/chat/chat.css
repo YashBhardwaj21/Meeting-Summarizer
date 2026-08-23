@@ -1,17 +1,19 @@
 .chat-workspace {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  width: 100%;
   max-width: 900px;
   margin: 0 auto;
   position: relative;
+  min-height: 0;
 }
 
 .chat-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 24px;
-  padding-bottom: 120px; /* Space for composer */
 }
 
 .chat-message-list {
@@ -30,20 +32,38 @@
   color: var(--color-text-muted);
 }
 
+.empty-state-icon {
+  margin-bottom: 24px;
+  color: var(--color-text);
+}
+
+.chat-message-list.empty-state h3 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 12px;
+  color: var(--color-text);
+}
+
+.chat-message-list.empty-state p {
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
 .chat-message {
   display: flex;
   flex-direction: column;
   max-width: 85%;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   padding: 16px;
   line-height: 1.5;
+  border: var(--border);
+  box-shadow: 4px 4px 0px var(--color-border);
 }
 
 .message-user {
   align-self: flex-end;
-  background-color: var(--color-primary);
-  color: white;
-  border-bottom-right-radius: 4px;
+  background-color: var(--color-surface);
 }
 
 .message-user .message-header {
@@ -52,10 +72,7 @@
 
 .message-assistant {
   align-self: flex-start;
-  background-color: var(--color-surface);
-  border: 1px solid var(--border);
-  color: var(--color-text);
-  border-bottom-left-radius: 4px;
+  background-color: var(--color-bg);
 }
 
 .message-assistant.asking {
@@ -110,52 +127,120 @@
 }
 
 .chat-composer-container {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 16px 24px;
-  background: linear-gradient(transparent, var(--bg) 20%);
+  flex-shrink: 0;
+  background: var(--color-bg);
 }
 
-.composer-input-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background-color: var(--color-surface);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 8px 16px;
-}
-
-.composer-textarea {
-  flex: 1;
+.meeting-event {
+  width: 100%;
+  max-width: 100%;
   background: transparent;
   border: none;
-  color: var(--color-text);
-  font-family: inherit;
-  font-size: 1rem;
-  outline: none;
-  padding: 8px 0;
+  padding: 0;
 }
 
-.composer-textarea::placeholder {
+.meeting-bubble {
+  background-color: var(--color-surface);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 4px 4px 0px var(--color-border);
+  width: 100%;
+  max-width: 450px;
+  overflow: hidden;
+  margin: 16px 0;
+}
+
+.meeting-bubble-header {
+  display: none;
+}
+
+.meeting-bubble-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.meeting-bubble-file {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}
+
+.meeting-bubble-meta {
+  font-size: 0.9rem;
   color: var(--color-text-muted);
+  margin-bottom: 16px;
 }
 
-.btn-attach {
-  font-size: 1.25rem;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+.meeting-bubble-stage {
+  font-size: 0.95rem;
+  color: var(--color-text);
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  background: transparent;
+  gap: 8px;
 }
 
-.btn-attach:hover:not(:disabled) {
-  background-color: var(--color-surface-hover);
+.meeting-bubble-stage::before {
+  content: '●';
   color: var(--color-text);
+}
+
+.meeting-bubble-footer {
+  padding: 16px;
+  background-color: var(--color-bg);
+  border-top: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-cancel-meeting {
+  background: none;
+  border: var(--border);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 2px 2px 0px var(--color-border);
+  transition: all 0.2s;
+}
+
+.btn-cancel-meeting:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--color-border);
+  background: var(--color-surface);
+}
+
+.status-completed-text {
+  font-weight: bold;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-completed-text::before {
+  content: '✓';
+}
+
+.view-transcript-link {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.view-transcript-link:hover {
+  color: var(--color-primary-hover);
+}
+
+.inline-transcript-container {
+  border-top: var(--border);
+  background-color: var(--color-surface);
 }

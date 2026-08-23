@@ -1,11 +1,18 @@
 import React from 'react';
 import type { ChatMessage as ChatMessageType } from '../../types/chat';
+import type { Job } from '../../types/job';
+import { MeetingMessage } from './MeetingMessage';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  job?: Job;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, job }: ChatMessageProps) {
+  if (message.message_type === 'meeting') {
+    return <MeetingMessage message={message} job={job} />;
+  }
+
   const isUser = message.role === 'user';
   
   return (
@@ -14,7 +21,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         <strong>{isUser ? 'User' : 'Assistant'}</strong>
       </div>
       <div className="message-content">
-        {message.content.split('\n').map((line, i) => (
+        {message.content && message.content.split('\n').map((line, i) => (
           <p key={i}>{line}</p>
         ))}
       </div>

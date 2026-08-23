@@ -21,7 +21,7 @@ function formatTime(seconds: number) {
 }
 
 export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewerProps) {
-  const isReady = status === 'ready';
+  const isReady = status === 'completed' || status === 'ready';
   const { segments, loading, error, hasMore, loadMore, total } = useTranscripts(chatId, meetingId, isReady);
 
   if (error) {
@@ -84,11 +84,7 @@ export function TranscriptViewer({ chatId, meetingId, status }: TranscriptViewer
   }, [segments]);
 
   return (
-    <div className="transcript-container">
-      <div className="transcript-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3>Transcript ({total} segments)</h3>
-      </div>
-      
+    <div className="transcript-container" style={{ maxHeight: '480px', overflowY: 'auto', padding: '16px' }}>
       <div className="transcript-segments" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {groupedSegments.map((group) => (
           <div key={group.id} className="transcript-segment-group" style={{ display: 'flex', gap: '16px' }}>

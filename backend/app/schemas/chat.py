@@ -34,14 +34,20 @@ class ChatSource(BaseModel):
     text: str
 
 
+from pydantic import BaseModel, ConfigDict, Field
+
 class ChatMessageResponse(BaseModel):
     id: uuid.UUID
+    chat_id: uuid.UUID
     role: str
-    content: str
+    message_type: str = "text"
+    content: str | None = None
+    meeting_id: uuid.UUID | None = None
+    metadata_: dict | None = Field(default=None, alias="metadata")
     created_at: datetime
     sources: list[ChatSource] | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class AskQuestionRequest(BaseModel):

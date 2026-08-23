@@ -1,13 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import { useChatMessages } from '../../hooks/useChatMessages';
+import { useMeetingJobStatuses } from '../../hooks/useMeetingJobStatuses';
 import { ChatMessage } from './ChatMessage';
 
 interface ChatMessageListProps {
   chatId?: string;
+  chatMessages: ReturnType<typeof useChatMessages>;
+  selectedFile?: File | null;
 }
 
-export function ChatMessageList({ chatId }: ChatMessageListProps) {
-  const { messages, loading, asking, loadMessages } = useChatMessages(chatId);
+export function ChatMessageList({ chatId, chatMessages, selectedFile }: ChatMessageListProps) {
+  const { messages, loading, asking, loadMessages } = chatMessages;
+  const jobs = useMeetingJobStatuses(messages);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,9 +37,8 @@ export function ChatMessageList({ chatId }: ChatMessageListProps) {
 
   if (messages.length === 0 && !asking) {
     return (
-      <div className="chat-message-list empty-state">
-        <h3>What would you like to know?</h3>
-        <p>Upload a meeting recording to get started, or ask a question if you already have one.</p>
+      <div className="chat-message-list">
+        {/* Empty chat timeline */}
       </div>
     );
   }
@@ -43,7 +46,7 @@ export function ChatMessageList({ chatId }: ChatMessageListProps) {
   return (
     <div className="chat-message-list">
       {messages.map(msg => (
-        <ChatMessage key={msg.id} message={msg} />
+        <ChatMessage key={msg.id} message={msg} job={msg.meeting_id ? jobs[msg.meeting_id] : undefined} />
       ))}
       {asking && (
         <div className="chat-message message-assistant asking">

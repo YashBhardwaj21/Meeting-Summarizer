@@ -216,6 +216,8 @@
 /* Main Content */
 .main-content {
   flex: 1;
-  overflow-y: auto;
-  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px 24px;
 }

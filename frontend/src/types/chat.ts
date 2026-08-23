@@ -20,13 +20,24 @@ export interface ChatSource {
   text: string;
 }
 
+export type ChatMessageRole = 'user' | 'assistant' | 'system';
+export type ChatMessageType = 'text' | 'meeting';
+
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
-  content: string;
+  chat_id: string;
+  role: ChatMessageRole;
+  message_type: ChatMessageType;
+  content: string | null;
   created_at: string;
+  status?: 'pending' | 'processing' | 'complete' | 'error';
+  meeting_id?: string | null;
+  metadata?: {
+    filename: string;
+    size_bytes: number;
+    job_id?: string | null;
+  };
   sources?: ChatSource[];
-  status?: 'pending' | 'complete' | 'error';
 }
 
 export interface AskQuestionResponse {

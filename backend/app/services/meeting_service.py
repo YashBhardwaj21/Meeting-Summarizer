@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.meeting import Meeting
 from app.models.job import ProcessingJob
+from app.models.chat_message import ChatMessage
 from app.models.enums import MeetingStatus, UploadStatus, JobStatus
 from app.services import chat_service
 from app.services import file_service
@@ -82,7 +83,21 @@ async def create_meeting(
         status=JobStatus.QUEUED.value
     )
     db.add(job)
-    logger.info(f"[API] created job {job_id}")
+    
+    # 5.5 Create Meeting Event Message
+    chat_message = ChatMessage(
+        chat_id=chat_id,
+        role="system",
+        message_type="meeting",
+        meeting_id=meeting_id,
+        metadata_={
+            "filename": file_record.filename,
+            "size_bytes": file_record.size_bytes
+        }
+    )
+    db.add(chat_message)
+    
+    logger.info(f"[API] created job {job_id} and meeting chat event")
     await db.commit()
     
     # 6. Enqueue job to Redis via arq

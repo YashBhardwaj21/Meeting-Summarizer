@@ -6,39 +6,60 @@ import './composer.css';
 interface ChatComposerProps {
   chatId?: string;
   disabled?: boolean;
+  chatMessages?: ReturnType<typeof useChatMessages>;
+  selectedFile?: File | null;
+  setSelectedFile?: (file: File | null) => void;
 }
 
-export function ChatComposer({ chatId, disabled }: ChatComposerProps) {
+export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, setSelectedFile }: ChatComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [localFile, setLocalFile] = useState<File | null>(null);
   const [text, setText] = useState('');
   
+  const file = selectedFile !== undefined ? selectedFile : localFile;
+  const setFile = setSelectedFile || setLocalFile;
+  
   const { uploadFile, isUploading, progress, status, error: uploadError } = useUpload(chatId);
-  const { askQuestion, asking, error: askError } = useChatMessages(chatId);
+  const fallbackChatMessages = useChatMessages(chatId);
+  const actualChatMessages = chatMessages || fallbackChatMessages;
+  const { askQuestion, asking, error: askError, loadMessages } = actualChatMessages;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+    const f = e.target.files?.[0];
+    if (f) {
+      setFile(f);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (isUploading || disabled) return;
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+    const f = e.dataTransfer.files?.[0];
+    if (f) {
+      setFile(f);
     }
   };
 
   const handleSubmit = async () => {
     if (isUploading || asking || disabled) return;
     
-    if (selectedFile) {
+    if (file) {
       // Upload takes priority
-      uploadFile(selectedFile);
+      try {
+        await uploadFile(file);
+        setFile(null); // Clear file, but keep text in composer!
+        await loadMessages(); // Refresh message list to show the meeting event!
+        
+        // If there's text, ask it as a question after upload
+        if (text.trim()) {
+          const question = text.trim();
+          setText('');
+          await askQuestion(question);
+        }
+      } catch (err) {
+        // Error is handled by useUpload hook
+      }
     } else if (text.trim()) {
       // Ask question
       const question = text.trim();
@@ -56,7 +77,7 @@ export function ChatComposer({ chatId, disabled }: ChatComposerProps) {
 
   const handleClearFile = () => {
     if (!isUploading) {
-      setSelectedFile(null);
+      setFile(null);
     }
   };
 
@@ -73,8 +94,8 @@ export function ChatComposer({ chatId, disabled }: ChatComposerProps) {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  const canSubmit = (selectedFile || text.trim()) && !isUploading && !asking && !disabled;
-  const showFileUI = selectedFile !== null;
+  const canSubmit = (file || text.trim()) && !isUploading && !asking && !disabled;
+  const showFileUI = file !== null && file !== undefined;
   const isBusy = isUploading || asking;
 
   return (
@@ -97,45 +118,38 @@ export function ChatComposer({ chatId, disabled }: ChatComposerProps) {
           style={{ display: 'none' }} 
         />
         
-        {showFileUI && (
-          <div className="composer-file-state">
-            <div className="composer-file-info">
-              <span className="composer-file-name">
-                {isUploading ? `Uploading ${selectedFile.name}` : selectedFile.name}
+        <div className="composer-input-row">
+          <button 
+            className="btn-icon btn-attach" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBusy || disabled}
+            title="Attach a meeting recording"
+          >
+            +
+          </button>
+
+          {showFileUI && file && (
+            <div className="composer-file-chip">
+              <span className="composer-file-chip-name">
+                🎵 {file.name}
               </span>
               {!isUploading && (
-                <span className="composer-file-size">{formatSize(selectedFile.size)}</span>
+                <span className="composer-file-chip-size">| {formatSize(file.size)}</span>
+              )}
+              {isUploading ? (
+                <span className="composer-file-chip-status">{progress !== null ? `${progress}%` : '...'}</span>
+              ) : (
+                <button className="btn-icon btn-cancel-chip" onClick={handleClearFile} aria-label="Remove file">
+                  ✕
+                </button>
               )}
             </div>
-            
-            {isUploading ? (
-              <div className="composer-progress-section">
-                {renderStatus()}
-              </div>
-            ) : (
-              <button className="btn-icon btn-cancel" onClick={handleClearFile} aria-label="Remove file">
-                ✕
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="composer-input-row">
-          {!isBusy && !showFileUI && (
-            <button 
-              className="btn-icon btn-attach" 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isBusy || disabled}
-              title="Attach a meeting recording"
-            >
-              +
-            </button>
           )}
 
           <textarea
             ref={textareaRef}
             className="composer-textarea"
-            placeholder={showFileUI ? "Add a message (optional)..." : "Ask anything about your meetings..."}
+            placeholder={showFileUI ? "Ask anything..." : "Ask anything about your meetings..."}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
