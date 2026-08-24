@@ -103,7 +103,7 @@ async def ready():
     try:
         from app.services.storage_service import get_boto3_client, settings as storage_settings
         s3 = get_boto3_client()
-        s3.head_bucket(Bucket=storage_settings.s3_bucket_name)
+        s3.head_bucket(Bucket=storage_settings.storage_bucket)
         checks["minio"] = "ok"
     except Exception as exc:
         checks["minio"] = f"error: {exc}"

@@ -39,7 +39,9 @@ class FasterWhisperProvider(ASRProvider):
                 self.model_size,
                 device=self.device,
                 compute_type=self.compute_type,
-                download_root="/app/models"
+                download_root="/app/models",
+                cpu_threads=8,
+                num_workers=1
             )
             logger.info("faster-whisper model loaded successfully.")
         except Exception as e:
@@ -49,7 +51,7 @@ class FasterWhisperProvider(ASRProvider):
     def _transcribe_sync(self, audio_path: str) -> list[ASRSegment]:
         """Synchronous wrapper for faster-whisper transcription."""
         try:
-            segments, info = self.model.transcribe(audio_path, beam_size=1, word_timestamps=False, vad_filter=True)
+            segments, info = self.model.transcribe(audio_path, beam_size=1, word_timestamps=True, vad_filter=True)
             logger.info(f"Detected language '{info.language}' with probability {info.language_probability}")
             
             asr_segments = []
@@ -58,10 +60,21 @@ class FasterWhisperProvider(ASRProvider):
                 if not text:
                     continue
                     
+                words = []
+                if segment.words:
+                    for w in segment.words:
+                        words.append({
+                            "start": float(w.start),
+                            "end": float(w.end),
+                            "word": w.word,
+                            "probability": float(w.probability)
+                        })
+                    
                 asr_segments.append(ASRSegment(
                     start=float(segment.start),
                     end=float(segment.end),
-                    text=text
+                    text=text,
+                    words=words
                 ))
                 
             return asr_segments

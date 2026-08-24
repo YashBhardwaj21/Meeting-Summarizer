@@ -44,6 +44,8 @@ class RAGService:
         try:
             embeddings = await self.embedding_provider.embed_batch([retrieval_query])
             question_embedding = embeddings[0]
+        except (ConnectionError, TimeoutError) as e:
+            raise RetryableProcessingError(f"Temporary connection error to embedding provider: {e}")
         except Exception as e:
             raise PermanentProcessingError(f"Failed to embed question: {e}")
             
@@ -71,6 +73,19 @@ class RAGService:
         if best_similarity < settings.rag_similarity_threshold:
             return "I couldn't find enough information in the meeting transcript to answer that.", []
             
+        # Fetch all required segments in a single query to avoid N+1 query problem
+        all_segment_ids = set()
+        for row in rows:
+            if row.TranscriptChunk.segment_ids:
+                all_segment_ids.update(row.TranscriptChunk.segment_ids)
+                
+        segment_map = {}
+        if all_segment_ids:
+            seg_stmt = select(TranscriptSegment).where(TranscriptSegment.id.in_(all_segment_ids))
+            seg_res = await db.execute(seg_stmt)
+            for seg in seg_res.scalars().all():
+                segment_map[seg.id] = seg
+
         # 3. Construct the prompt and source evidence
         context_parts = []
         sources = []
@@ -79,30 +94,25 @@ class RAGService:
             chunk = row.TranscriptChunk
             distance = row.distance
             
-            # Fetch ALL segments for this chunk
             segments_data = []
-            speakers_set = set()
+            speakers_list = []
             
             if chunk.segment_ids:
-                seg_stmt = (
-                    select(TranscriptSegment)
-                    .where(TranscriptSegment.id.in_(chunk.segment_ids))
-                    .order_by(TranscriptSegment.start_time)
-                )
-                seg_res = await db.execute(seg_stmt)
-                segments = seg_res.scalars().all()
-                
-                for seg in segments:
+                for seg_id in chunk.segment_ids:
+                    seg = segment_map.get(seg_id)
+                    if not seg:
+                        continue
+                        
                     spk = seg.speaker or "Unknown"
-                    speakers_set.add(spk)
+                    if spk not in speakers_list:
+                        speakers_list.append(spk)
+                        
                     segments_data.append({
                         "start_time": seg.start_time,
                         "end_time": seg.end_time,
                         "speaker": spk,
                         "text": seg.text
                     })
-            
-            speakers_list = list(speakers_set)
             
             # Format time as MM:SS
             start_min = int(chunk.start_time // 60)

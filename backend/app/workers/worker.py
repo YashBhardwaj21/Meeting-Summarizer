@@ -91,9 +91,14 @@ async def process_meeting_job(ctx: dict[str, Any], job_id_hex: str) -> None:
             
             # On success: update metrics and complete job
             try:
-                await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete", processing_metrics=metrics)
-                await db.commit()
-                logger.info(f"[WORKER] COMPLETED {job_id}")
+                # Reload job to ensure we don't overwrite CANCELLED
+                current_job = await job_service.get_job(db, job_id)
+                if current_job.status != JobStatus.CANCELLED.value:
+                    await job_service.update_job_status(db, job_id, JobStatus.COMPLETED, stage="complete", processing_metrics=metrics)
+                    await db.commit()
+                    logger.info(f"[WORKER] COMPLETED {job_id}")
+                else:
+                    logger.info(f"[WORKER] Job {job_id} was cancelled, skipping COMPLETED state")
             except Exception as e:
                 logger.warning(f"[WORKER] Failed to complete job {job_id}, it might have been cancelled: {e}")
                 await db.rollback()
@@ -200,8 +205,8 @@ async def check_stale_jobs(ctx: dict[str, Any]) -> None:
                 elif status == ArqJobStatus.complete:
                     logger.warning(f"Job {job.id.hex} is complete in ARQ but QUEUED in DB. Reconciling.")
                     await job_service.update_job_status(db, job.id, JobStatus.COMPLETED)
-                elif status in (ArqJobStatus.aborted, ArqJobStatus.not_found):
-                    logger.warning(f"Job {job.id.hex} aborted/missing in ARQ. Marking FAILED.")
+                elif status == ArqJobStatus.aborted:
+                    logger.warning(f"Job {job.id.hex} aborted in ARQ. Marking FAILED.")
                     await job_service.update_job_status(
                         db, job.id, JobStatus.FAILED, 
                         error_code="QUEUE_TIMEOUT", 

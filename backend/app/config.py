@@ -48,7 +48,6 @@ class Settings(BaseSettings):
     storage_quota_bytes: int = 10 * 1024 * 1024 * 1024  # 10 GB
 
     # ── ASR ──────────────────────────────────────────────────────────
-    groq_api_key: str = ""
     asr_provider: str = "local"
     asr_model: str = "base"
     whisper_device: str = "cpu"
@@ -65,7 +64,6 @@ class Settings(BaseSettings):
     hf_token: str = ""
 
     # ── Embeddings ───────────────────────────────────────────────────
-    openai_api_key: str = ""
     embedding_provider: str = "nomic"
     embedding_model: str = "nomic-embed-text"
     embedding_dimensions: int = 768

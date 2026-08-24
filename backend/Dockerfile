@@ -10,7 +10,7 @@ RUN apt-get update && \
 # Install Python dependencies (with BuildKit cache for faster rebuilds)
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install torch==2.0.1 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cpu --default-timeout=100
+    pip install torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu --default-timeout=100
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt --default-timeout=100
 
@@ -18,5 +18,5 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY . .
 RUN chmod +x /app/backend-entrypoint.sh
 
-# Run with hot-reload for development
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Run without hot-reload for stability
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

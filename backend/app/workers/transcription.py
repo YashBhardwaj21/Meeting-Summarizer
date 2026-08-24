@@ -91,6 +91,9 @@ async def run_transcription_pipeline(
         metrics["media_duration_seconds"] = media_metadata.duration_seconds
         metrics["media_size_bytes"] = media_metadata.size_bytes
         
+        meeting.duration_seconds = media_metadata.duration_seconds
+        await db.commit()
+        
         # 2. Audio Extraction
         if await _check_cancelled(db, job_id): raise asyncio.CancelledError()
         await job_service.update_job_status(db, job_id, JobStatus.PROCESSING, stage="audio_extraction")

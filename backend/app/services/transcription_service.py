@@ -17,6 +17,7 @@ class CanonicalSegment:
     end_time: float
     text: str
     speaker: str | None = None
+    words: list[dict] | None = None
 
 
 def _normalize_text(text: str) -> str:
@@ -66,11 +67,23 @@ async def transcribe_audio(
             # Correct timestamps
             canonical = []
             for seg in asr_segments:
+                canonical_words = None
+                if seg.words:
+                    canonical_words = []
+                    for w in seg.words:
+                        canonical_words.append({
+                            "start": chunk.offset_seconds + w["start"],
+                            "end": chunk.offset_seconds + w["end"],
+                            "word": w["word"],
+                            "probability": w.get("probability", 1.0)
+                        })
+                
                 canonical.append(CanonicalSegment(
                     start_time=chunk.offset_seconds + seg.start,
                     end_time=chunk.offset_seconds + seg.end,
                     text=seg.text,
-                    speaker=None
+                    speaker=None,
+                    words=canonical_words
                 ))
             return index, canonical
 
@@ -179,41 +192,84 @@ def align_speakers(
     speaker_segments: list[SpeakerSegment]
 ) -> list[CanonicalSegment]:
     """
-    Align ASR segments with Speaker Diarization segments using overlap.
-    Currently uses max-overlap to assign a speaker to the whole Whisper segment.
-    Designed so that it can be enhanced to split Whisper segments later.
+    Align ASR segments with Speaker Diarization segments using word-level timestamps if available.
+    Splits ASR segments at speaker boundaries to perfectly align Whisper text with Pyannote turns.
     """
     if not asr_segments or not speaker_segments:
         return asr_segments
 
-    # Pre-normalize speaker names (SPEAKER_00 -> Speaker 1)
-    # We create a deterministic mapping based on the order they appear
-    speaker_mapping = {}
-    next_speaker_idx = 1
-    for spk in speaker_segments:
-        if spk.speaker not in speaker_mapping:
-            speaker_mapping[spk.speaker] = f"Speaker {next_speaker_idx}"
-            next_speaker_idx += 1
+    # Sort speaker segments to ensure chronological order for interval search
+    speaker_segments.sort(key=lambda s: s.start)
+
+    def get_speaker_for_time(t: float) -> str | None:
+        """Find the speaker segment containing the time t."""
+        # Simple linear search (sufficient for most meetings)
+        for spk_seg in speaker_segments:
+            if spk_seg.start <= t <= spk_seg.end:
+                return spk_seg.speaker
+        return None
 
     aligned_segments = []
+    
     for asr_seg in asr_segments:
-        best_overlap = 0.0
-        best_speaker = None
-        
-        # Calculate overlap for each speaker segment
-        for spk_seg in speaker_segments:
-            # Overlap formula: min(end1, end2) - max(start1, start2)
-            overlap = min(asr_seg.end_time, spk_seg.end) - max(asr_seg.start_time, spk_seg.start)
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_speaker = spk_seg.speaker
-                
-        # Assign best speaker
-        if best_speaker:
-            asr_seg.speaker = speaker_mapping.get(best_speaker, best_speaker)
-        else:
-            asr_seg.speaker = None
+        if not asr_seg.words:
+            # Fallback: max overlap for the whole segment
+            best_overlap = 0.0
+            best_speaker = None
+            for spk_seg in speaker_segments:
+                overlap = min(asr_seg.end_time, spk_seg.end) - max(asr_seg.start_time, spk_seg.start)
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_speaker = spk_seg.speaker
+            asr_seg.speaker = best_speaker
+            aligned_segments.append(asr_seg)
+            continue
             
-        aligned_segments.append(asr_seg)
+        # We have words, group them by speaker
+        current_speaker = None
+        current_words = []
         
+        for w in asr_seg.words:
+            midpoint = (w["start"] + w["end"]) / 2.0
+            spk = get_speaker_for_time(midpoint)
+            
+            if current_speaker is None:
+                current_speaker = spk
+                
+            if spk != current_speaker:
+                # Speaker changed, flush current words
+                if current_words:
+                    aligned_segments.append(CanonicalSegment(
+                        start_time=current_words[0]["start"],
+                        end_time=current_words[-1]["end"],
+                        text=" ".join([cw["word"].strip() for cw in current_words]),
+                        speaker=current_speaker,
+                        words=current_words
+                    ))
+                current_speaker = spk
+                current_words = [w]
+            else:
+                current_words.append(w)
+                
+        # Flush remaining
+        if current_words:
+            aligned_segments.append(CanonicalSegment(
+                start_time=current_words[0]["start"],
+                end_time=current_words[-1]["end"],
+                text=" ".join([cw["word"].strip() for cw in current_words]),
+                speaker=current_speaker,
+                words=current_words
+            ))
+            
+    # Normalize speaker names (SPEAKER_00 -> Speaker 1) in chronological appearance
+    speaker_mapping = {}
+    next_speaker_idx = 1
+    
+    for seg in aligned_segments:
+        if seg.speaker:
+            if seg.speaker not in speaker_mapping:
+                speaker_mapping[seg.speaker] = f"Speaker {next_speaker_idx}"
+                next_speaker_idx += 1
+            seg.speaker = speaker_mapping[seg.speaker]
+            
     return aligned_segments

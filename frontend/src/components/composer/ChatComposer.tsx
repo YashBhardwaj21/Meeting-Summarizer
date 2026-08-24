@@ -112,13 +112,13 @@ export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, set
           <button 
             className="btn-icon btn-attach" 
             onClick={() => fileInputRef.current?.click()}
-            disabled={isBusy || disabled}
+            disabled={isBusy || disabled || showFileUI}
             title="Attach a meeting recording"
           >
             +
           </button>
 
-          {showFileUI && selectedFile && (
+          {showFileUI && selectedFile ? (
             <div className="composer-file-chip">
               <span className="composer-file-chip-name">
                 🎵 {selectedFile.name}
@@ -134,27 +134,27 @@ export function ChatComposer({ chatId, disabled, chatMessages, selectedFile, set
                 </button>
               )}
             </div>
+          ) : (
+            <textarea
+              ref={textareaRef}
+              className="composer-textarea"
+              placeholder="Ask anything about your meetings..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isBusy || disabled}
+              rows={1}
+              style={{ resize: 'none' }}
+            />
           )}
-
-          <textarea
-            ref={textareaRef}
-            className="composer-textarea"
-            placeholder={showFileUI ? "Ask anything..." : "Ask anything about your meetings..."}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isBusy || disabled}
-            rows={1}
-            style={{ resize: 'none' }}
-          />
 
           <button 
             className={`btn-icon btn-submit ${canSubmit ? 'active' : ''}`} 
             onClick={handleSubmit}
             disabled={!canSubmit}
-            title="Send"
+            title={showFileUI ? "Upload Recording" : "Send"}
           >
-            ➤
+            {showFileUI ? "⬆" : "➤"}
           </button>
         </div>
       </div>

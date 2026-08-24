@@ -31,9 +31,9 @@ class PyannoteDiarizationProvider(DiarizationProvider):
         try:
             self.pipeline = Pipeline.from_pretrained(
                 self.model_name,
-                use_auth_token=settings.hf_token
+                token=settings.hf_token
             )
-            # Pyannote uses `use_auth_token` in 3.1+ pipelines.
+            # Pyannote uses `token` in 3.1+ pipelines.
             if self.pipeline is None:
                 raise RuntimeError(f"Could not load pyannote pipeline {self.model_name}. Please check HF_TOKEN.")
                 
@@ -53,8 +53,16 @@ class PyannoteDiarizationProvider(DiarizationProvider):
             logger.info(f"Running pyannote diarization on {audio_path}")
             diarization = self.pipeline(audio_path)
             
+            # Community-1 specific: use non-overlapping exclusive speaker intervals
+            # for reliable alignment with STT word timestamps.
+            if hasattr(diarization, "exclusive_speaker_diarization"):
+                exclusive_diarization = diarization.exclusive_speaker_diarization()
+            else:
+                # Fallback if standard pyannote model is used instead of Community-1
+                exclusive_diarization = diarization
+            
             segments = []
-            for turn, _, speaker in diarization.itertracks(yield_label=True):
+            for turn, _, speaker in exclusive_diarization.itertracks(yield_label=True):
                 segments.append(SpeakerSegment(
                     speaker=speaker,
                     start=float(turn.start),

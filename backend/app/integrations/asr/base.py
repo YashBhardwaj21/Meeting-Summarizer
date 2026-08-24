@@ -8,6 +8,7 @@ class ASRSegment:
     start: float      # chunk-local seconds
     end: float        # chunk-local seconds
     text: str
+    words: list[dict] | None = None
     # NO speaker field. Whisper does not do diarization.
 
 
