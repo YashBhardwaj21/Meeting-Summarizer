@@ -60,6 +60,10 @@ class Settings(BaseSettings):
 
     # ── Diarization ──────────────────────────────────────────────────
     diarization_enabled: bool = True
+    diarization_provider: str = "remote"
+    diarization_remote_url: str = ""
+    diarization_api_key: str = ""
+    diarization_timeout_seconds: int = 1800
     diarization_model: str = "pyannote/speaker-diarization-community-1"
     hf_token: str = ""
 

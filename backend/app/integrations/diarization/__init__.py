@@ -18,6 +18,11 @@ def get_diarization_provider() -> Optional[DiarizationProvider]:
     if not settings.diarization_enabled:
         return None
         
-    from app.integrations.diarization.pyannote_diarization import PyannoteDiarizationProvider
-    _diarization_provider_instance = PyannoteDiarizationProvider()
+    if settings.diarization_provider == "remote":
+        from app.integrations.diarization.remote import RemoteDiarizationProvider
+        _diarization_provider_instance = RemoteDiarizationProvider()
+    else:
+        from app.integrations.diarization.pyannote_diarization import PyannoteDiarizationProvider
+        _diarization_provider_instance = PyannoteDiarizationProvider()
+        
     return _diarization_provider_instance
