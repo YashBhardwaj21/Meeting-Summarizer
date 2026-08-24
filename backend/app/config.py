@@ -82,8 +82,8 @@ class Settings(BaseSettings):
     llm_model: str = "gemma3:4b"
     llm_temperature: float = 0.2
     llm_timeout_seconds: int = 120
-    rag_top_k: int = 8
-    rag_similarity_threshold: float = 0.6
+    rag_top_k: int = 10
+    rag_similarity_threshold: float = 0.35
     chat_history_turns: int = 6
 
     # ── Chunking ─────────────────────────────────────────────────────

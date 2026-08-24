@@ -95,11 +95,10 @@ export function Sidebar() {
       <div className="sidebar-nav">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '16px' }}>
           <h2 className="nav-heading">CHATS</h2>
-          <button 
-            onClick={handleCreateChat} 
+          <button
+            onClick={handleCreateChat}
             disabled={creating}
-            className="btn-primary"
-            style={{ padding: '4px 8px', fontSize: '0.8rem', height: 'auto', marginBottom: '8px' }}
+            className="new-chat-button"
           >
             {creating ? '...' : '+ New'}
           </button>

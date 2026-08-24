@@ -69,9 +69,6 @@ class RAGService:
         # Check similarity threshold on the best match
         best_distance = rows[0].distance
         best_similarity = 1.0 - best_distance
-        
-        if best_similarity < settings.rag_similarity_threshold:
-            return "I couldn't find enough information in the meeting transcript to answer that.", []
             
         # Fetch all required segments in a single query to avoid N+1 query problem
         all_segment_ids = set()
@@ -139,12 +136,17 @@ class RAGService:
         context_block = "\n\n".join(context_parts)
         
         system_prompt = (
-            "You are MeetSum, a meeting transcript assistant. Answer using only the supplied transcript evidence. "
+            "You are MeetSum, a meeting transcript assistant. "
+            "Answer the user's question using the supplied meeting transcript evidence. "
+            "You may synthesize information across multiple transcript segments to infer the overall topic, "
+            "setting, purpose, or context of the conversation, but you must not invent facts that are not supported "
+            "by the transcript.\n"
             "Rules:\n"
             "- Answer the user's exact question.\n"
             "- Use conversation history to understand follow-up questions.\n"
+            "- Synthesize relevant evidence across multiple transcript segments when necessary.\n"
             "- Do not invent information.\n"
-            "- If the evidence is insufficient, say so.\n"
+            "- If the transcript genuinely does not contain enough evidence, say so.\n"
             "- Preserve speaker names when available.\n"
             "- Use timestamps when useful.\n"
             "- Do not claim a person said something unless the evidence identifies that speaker.\n"
