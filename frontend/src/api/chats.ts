@@ -5,6 +5,7 @@ export const chatsApi = {
   list: () => api.get<Chat[]>('/chats'),
   get: (chatId: string) => api.get<Chat>(`/chats/${chatId}`),
   create: (data: ChatCreate = {}) => api.post<Chat>('/chats', data),
+  rename: (chatId: string, title: string) => api.patch<Chat>(`/chats/${chatId}`, { title }),
   delete: (chatId: string) => api.delete(`/chats/${chatId}`),
   ask: (chatId: string, question: string, limit = 10) => 
     api.post<AskQuestionResponse>(`/chats/${chatId}/ask`, { question, limit }),

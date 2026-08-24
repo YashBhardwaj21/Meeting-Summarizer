@@ -76,24 +76,6 @@
   text-overflow: ellipsis;
 }
 
-.meeting-title-input {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: var(--border);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  outline: none;
-}
-
-.meeting-title-input:focus {
-  box-shadow: 2px 2px 0 var(--color-border);
-}
-
 .meeting-meta {
   font-size: 0.875rem;
   color: var(--color-text-muted);
@@ -117,32 +99,7 @@
 .status-pending { background-color: var(--color-bg); }
 
 .meeting-action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   flex-shrink: 0;
-}
-
-.btn-rename {
-  font-weight: 700;
-  color: var(--color-text);
-  background-color: var(--color-primary);
-  border: var(--border);
-  border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  cursor: pointer;
-  box-shadow: 2px 2px 0 var(--color-border);
-}
-
-.btn-rename:hover {
-  background-color: var(--color-primary-hover);
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--color-border);
-}
-
-.btn-rename:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0 var(--color-border);
 }
 
 .btn-view {

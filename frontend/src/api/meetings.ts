@@ -13,10 +13,4 @@ export const meetingsApi = {
       `/chats/${chatId}/meetings`,
       { file_id: fileId }
     ),
-
-  rename: (meetingId: string, title: string) =>
-    api.patch<Meeting>(
-      `/meetings/${meetingId}`,
-      { title }
-    ),
 };

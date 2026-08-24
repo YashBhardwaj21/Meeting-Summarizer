@@ -5,6 +5,89 @@ import { useStorage } from '../../hooks/useStorage';
 import type { Chat } from '../../types/chat';
 import './layout.css';
 
+function ChatItem({ chat, isActive, onDeleteClick, onRename }: { chat: Chat, isActive: boolean, onDeleteClick: (e: React.MouseEvent, id: string, title: string | null) => void, onRename: (id: string, title: string) => Promise<void> }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(chat.title || 'Untitled Workspace');
+  const [saving, setSaving] = useState(false);
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTitle(chat.title || 'Untitled Workspace');
+    setIsEditing(true);
+  };
+
+  const handleSave = async () => {
+    const trimmed = title.trim();
+    if (!trimmed || trimmed === (chat.title || 'Untitled Workspace')) {
+      setTitle(chat.title || 'Untitled Workspace');
+      setIsEditing(false);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await onRename(chat.id, trimmed);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to rename chat', error);
+      setTitle(chat.title || 'Untitled Workspace');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void handleSave();
+    }
+    if (e.key === 'Escape') {
+      setTitle(chat.title || 'Untitled Workspace');
+      setIsEditing(false);
+    }
+  };
+
+  return (
+    <NavLink 
+      to={`/chats/${chat.id}`} 
+      className={`chat-item ${isActive ? 'active' : ''}`}
+      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+    >
+      <div style={{ flex: 1, minWidth: 0, marginRight: '8px' }}>
+        {isEditing ? (
+          <input
+            autoFocus
+            value={title}
+            disabled={saving}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => void handleSave()}
+            onKeyDown={handleKeyDown}
+            className="chat-title-input"
+            onClick={(e) => e.preventDefault()}
+          />
+        ) : (
+          <div 
+            className="chat-name chat-title-editable" 
+            onDoubleClick={handleDoubleClick}
+            title="Double-click to rename"
+          >
+            {title}
+          </div>
+        )}
+      </div>
+      <button 
+        onClick={(e) => onDeleteClick(e, chat.id, chat.title)}
+        className="delete-btn"
+        title="Delete workspace"
+        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+      >
+        ×
+      </button>
+    </NavLink>
+  );
+}
+
 export function Sidebar() {
   const { chats, loading, creating, refetch, createChat } = useChats();
   const [localChats, setLocalChats] = useState<Chat[]>([]);
@@ -62,6 +145,17 @@ export function Sidebar() {
     setChatToDelete(null);
   };
 
+  const handleRenameChat = async (id: string, newTitle: string) => {
+    try {
+      const { chatsApi } = await import('../../api/chats');
+      const updatedChat = await chatsApi.rename(id, newTitle);
+      setLocalChats(prev => prev.map(c => c.id === id ? { ...c, title: updatedChat.title } : c));
+      refetch();
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const handleCreateChat = async () => {
     setCreateError(null);
     try {
@@ -90,7 +184,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h1 className="logo">[M] MeetSum</h1>
+        <h1 className="logo" style={{ margin: 0, letterSpacing: '0.05em' }}>LUMI</h1>
       </div>
       <div className="sidebar-nav">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '16px' }}>
@@ -118,24 +212,12 @@ export function Sidebar() {
           <ul className="chat-list">
             {localChats.map(chat => (
               <li key={chat.id}>
-                <NavLink 
-                  to={`/chats/${chat.id}`} 
-                  className={({ isActive }) => `chat-item ${isActive ? 'active' : ''}`}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
-                  <div>
-                    <div className="chat-name">{chat.title || 'Untitled Workspace'}</div>
-                    <div className="chat-meta">{chat.meeting_count} meetings {chat.meeting_count > 0 ? <span>&bull;</span> : ''}</div>
-                  </div>
-                  <button 
-                    onClick={(e) => handleDeleteClick(e, chat.id, chat.title)}
-                    className="delete-btn"
-                    title="Delete workspace"
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                  >
-                    ×
-                  </button>
-                </NavLink>
+                <ChatItem 
+                  chat={chat} 
+                  isActive={chat.id === chatId} 
+                  onDeleteClick={handleDeleteClick} 
+                  onRename={handleRenameChat} 
+                />
               </li>
             ))}
             {localChats.length === 0 && (

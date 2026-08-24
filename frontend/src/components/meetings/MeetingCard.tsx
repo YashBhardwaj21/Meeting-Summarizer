@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router';
 import type { Meeting } from '../../types/meeting';
-import { meetingsApi } from '../../api/meetings';
 
 interface MeetingCardProps {
   meeting: Meeting;
@@ -10,57 +9,8 @@ interface MeetingCardProps {
 export function MeetingCard({ meeting }: MeetingCardProps) {
   const navigate = useNavigate();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(meeting.title || 'Untitled Meeting');
-  const [saving, setSaving] = useState(false);
-
   const handleView = () => {
-    if (!isEditing) {
-      navigate(`/meetings/${meeting.id}`);
-    }
-  };
-
-  const handleRename = async () => {
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      setTitle(meeting.title || 'Untitled Meeting');
-      setIsEditing(false);
-      return;
-    }
-
-    if (trimmedTitle === (meeting.title || 'Untitled Meeting')) {
-      setIsEditing(false);
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      await meetingsApi.rename(meeting.id, trimmedTitle);
-
-      setTitle(trimmedTitle);
-      setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to rename meeting:', error);
-      setTitle(meeting.title || 'Untitled Meeting');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleTitleKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      void handleRename();
-    }
-
-    if (event.key === 'Escape') {
-      setTitle(meeting.title || 'Untitled Meeting');
-      setIsEditing(false);
-    }
+    navigate(`/meetings/${meeting.id}`);
   };
 
   const dateStr = new Date(meeting.created_at).toLocaleDateString(
@@ -90,29 +40,9 @@ export function MeetingCard({ meeting }: MeetingCardProps) {
       </div>
 
       <div className="meeting-content">
-        {isEditing ? (
-          <input
-            autoFocus
-            value={title}
-            maxLength={255}
-            disabled={saving}
-            onChange={(event) => setTitle(event.target.value)}
-            onBlur={() => void handleRename()}
-            onKeyDown={handleTitleKeyDown}
-            className="meeting-title-input"
-          />
-        ) : (
-          <h3 
-            className="meeting-title"
-            onDoubleClick={(event) => {
-              event.stopPropagation();
-              setIsEditing(true);
-            }}
-            title="Double click to rename"
-          >
-            {title}
-          </h3>
-        )}
+        <h3 className="meeting-title">
+          {meeting.title || 'Untitled Meeting'}
+        </h3>
 
         <div className="meeting-meta">
           {dateStr} &bull; {durationStr} &bull; Media

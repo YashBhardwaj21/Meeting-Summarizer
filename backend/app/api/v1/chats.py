@@ -13,6 +13,10 @@ from app.schemas.chat import (
     AskQuestionResponse,
     ChatMessageResponse
 )
+from pydantic import BaseModel, Field
+
+class ChatRenameRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
 from app.models.chat_message import ChatMessage
 from app.services import chat_service
 from app.services.rag_service import rag_service
@@ -59,6 +63,24 @@ async def get_chat_endpoint(
 ):
     """Retrieve details for an active chat."""
     return await chat_service.get_chat(db, chat_id)
+
+
+@router.patch(
+    "/{chat_id}",
+    response_model=ChatResponse,
+    summary="Rename a chat",
+)
+async def rename_chat_endpoint(
+    chat_id: uuid.UUID,
+    payload: ChatRenameRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Rename a chat workspace."""
+    chat = await chat_service.get_chat(db, chat_id)
+    chat.title = payload.title.strip()
+    await db.commit()
+    await db.refresh(chat)
+    return chat
 
 
 @router.delete(

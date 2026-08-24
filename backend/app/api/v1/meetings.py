@@ -3,15 +3,11 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Request, status
-from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.meeting import MeetingCreateRequest, MeetingResponse
 from app.services import meeting_service
-
-class MeetingRenameRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=255)
 
 router = APIRouter(tags=["meetings"])
 
@@ -71,23 +67,3 @@ async def get_meeting_endpoint(
 ):
     """Retrieve details and processing status of a meeting."""
     return await meeting_service.get_meeting(db, meeting_id)
-
-
-@router.patch(
-    "/meetings/{meeting_id}",
-    response_model=MeetingResponse,
-    summary="Rename a meeting",
-)
-async def rename_meeting_endpoint(
-    meeting_id: uuid.UUID,
-    payload: MeetingRenameRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    meeting = await meeting_service.get_meeting(db, meeting_id)
-
-    meeting.title = payload.title.strip()
-
-    await db.commit()
-    await db.refresh(meeting)
-
-    return meeting
