@@ -64,8 +64,8 @@ class Settings(BaseSettings):
     diarization_remote_url: str = ""
     diarization_api_key: str = ""
     diarization_timeout_seconds: int = 1800
+    diarization_num_speakers: int | None = None
     diarization_model: str = "pyannote/speaker-diarization-community-1"
-    hf_token: str = ""
 
     # ── Embeddings ───────────────────────────────────────────────────
     embedding_provider: str = "nomic"

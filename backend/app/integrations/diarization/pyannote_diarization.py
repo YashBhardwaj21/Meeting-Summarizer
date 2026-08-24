@@ -56,7 +56,7 @@ class PyannoteDiarizationProvider(DiarizationProvider):
             # Community-1 specific: use non-overlapping exclusive speaker intervals
             # for reliable alignment with STT word timestamps.
             if hasattr(diarization, "exclusive_speaker_diarization"):
-                exclusive_diarization = diarization.exclusive_speaker_diarization()
+                exclusive_diarization = diarization.exclusive_speaker_diarization
             else:
                 # Fallback if standard pyannote model is used instead of Community-1
                 exclusive_diarization = diarization

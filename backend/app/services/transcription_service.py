@@ -198,16 +198,22 @@ def align_speakers(
     if not asr_segments or not speaker_segments:
         return asr_segments
 
+    # Filter out micro-segments less than 0.10 seconds
+    speaker_segments = [s for s in speaker_segments if (s.end - s.start) >= 0.10]
+    
     # Sort speaker segments to ensure chronological order for interval search
     speaker_segments.sort(key=lambda s: s.start)
 
-    def get_speaker_for_time(t: float) -> str | None:
-        """Find the speaker segment containing the time t."""
-        # Simple linear search (sufficient for most meetings)
+    def get_speaker_for_word(w: dict) -> str | None:
+        """Find the speaker segment with the maximum overlap for the word interval."""
+        best_overlap = 0.0
+        best_speaker = None
         for spk_seg in speaker_segments:
-            if spk_seg.start <= t <= spk_seg.end:
-                return spk_seg.speaker
-        return None
+            overlap = min(w["end"], spk_seg.end) - max(w["start"], spk_seg.start)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_speaker = spk_seg.speaker
+        return best_speaker
 
     aligned_segments = []
     
@@ -230,8 +236,7 @@ def align_speakers(
         current_words = []
         
         for w in asr_seg.words:
-            midpoint = (w["start"] + w["end"]) / 2.0
-            spk = get_speaker_for_time(midpoint)
+            spk = get_speaker_for_word(w)
             
             if current_speaker is None:
                 current_speaker = spk

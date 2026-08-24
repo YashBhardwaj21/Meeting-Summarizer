@@ -1,6 +1,7 @@
 import logging
 import httpx
 from typing import List
+from pathlib import Path
 
 from app.config import get_settings
 from app.utils.exceptions import PermanentProcessingError, RetryableProcessingError
@@ -39,13 +40,18 @@ class RemoteDiarizationProvider(DiarizationProvider):
             # We open the file in binary mode and pass it via a multipart form
             with open(audio_path, "rb") as f:
                 files = {
-                    "audio": ("audio.wav", f, "audio/wav")
+                    "audio": (Path(audio_path).name, f, "audio/flac")
                 }
+                
+                data = {}
+                if self.settings.diarization_num_speakers:
+                    data["num_speakers"] = str(self.settings.diarization_num_speakers)
                 
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.post(
                         f"{self.remote_url}/diarize",
                         files=files,
+                        data=data,
                         headers=headers
                     )
                     
@@ -58,16 +64,24 @@ class RemoteDiarizationProvider(DiarizationProvider):
                         else:
                             raise PermanentProcessingError(error_msg, error_code="REMOTE_DIARIZATION_ERROR")
                             
-                    data = response.json()
-                    segments_data = data.get("segments", [])
+                    response_data = response.json()
+                    if not isinstance(response_data.get("segments"), list):
+                        raise PermanentProcessingError(
+                            "Invalid diarization response",
+                            error_code="REMOTE_DIARIZATION_INVALID_RESPONSE",
+                        )
+                        
+                    segments_data = response_data.get("segments")
                     
                     segments = []
                     for item in segments_data:
+                        if not all(k in item for k in ("speaker", "start", "end")):
+                            continue
                         segments.append(
                             SpeakerSegment(
-                                speaker=item["speaker"],
-                                start=item["start"],
-                                end=item["end"]
+                                speaker=str(item["speaker"]),
+                                start=float(item["start"]),
+                                end=float(item["end"])
                             )
                         )
                         

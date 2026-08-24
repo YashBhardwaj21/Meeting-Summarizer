@@ -22,7 +22,9 @@ def get_diarization_provider() -> Optional[DiarizationProvider]:
         from app.integrations.diarization.remote import RemoteDiarizationProvider
         _diarization_provider_instance = RemoteDiarizationProvider()
     else:
-        from app.integrations.diarization.pyannote_diarization import PyannoteDiarizationProvider
-        _diarization_provider_instance = PyannoteDiarizationProvider()
+        from app.utils.exceptions import PermanentProcessingError
+        raise PermanentProcessingError(
+            "Only remote diarization is supported in this deployment."
+        )
         
     return _diarization_provider_instance
