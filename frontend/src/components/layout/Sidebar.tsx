@@ -52,9 +52,14 @@ function ChatItem({ chat, isActive, onDeleteClick, onRename }: { chat: Chat, isA
     <NavLink 
       to={`/chats/${chat.id}`} 
       className={`chat-item ${isActive ? 'active' : ''}`}
-      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}
     >
-      <div style={{ flex: 1, minWidth: 0, marginRight: '8px' }}>
+      <div style={{ flexShrink: 0, color: isActive ? 'var(--color-text)' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center' }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </div>
+      <div style={{ flex: 1, minWidth: 0, marginRight: '4px' }}>
         {isEditing ? (
           <input
             autoFocus
@@ -80,9 +85,13 @@ function ChatItem({ chat, isActive, onDeleteClick, onRename }: { chat: Chat, isA
         onClick={(e) => onDeleteClick(e, chat.id, chat.title)}
         className="delete-btn"
         title="Delete workspace"
-        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+        style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
       >
-        ×
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="1.5"></circle>
+          <circle cx="19" cy="12" r="1.5"></circle>
+          <circle cx="5" cy="12" r="1.5"></circle>
+        </svg>
       </button>
     </NavLink>
   );
@@ -183,19 +192,34 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">
+      <div className="sidebar-header" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="2" x2="12" y2="6"></line>
+          <line x1="12" y1="18" x2="12" y2="22"></line>
+          <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+          <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+          <line x1="2" y1="12" x2="6" y2="12"></line>
+          <line x1="18" y1="12" x2="22" y2="12"></line>
+          <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+          <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+        </svg>
         <h1 className="logo" style={{ margin: 0, letterSpacing: '0.05em' }}>LUMI</h1>
       </div>
+      
+      <div className="sidebar-actions">
+        <button
+          onClick={handleCreateChat}
+          disabled={creating}
+          className="btn-new-chat"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '1rem', color: '#111' }}
+        >
+          <span style={{ fontSize: '1.4rem', fontWeight: 300 }}>+</span> {creating ? 'Creating...' : 'New Chat'}
+        </button>
+      </div>
+
       <div className="sidebar-nav">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '16px' }}>
-          <h2 className="nav-heading">CHATS</h2>
-          <button
-            onClick={handleCreateChat}
-            disabled={creating}
-            className="new-chat-button"
-          >
-            {creating ? '...' : '+ New'}
-          </button>
+          <h2 className="nav-heading" style={{ textTransform: 'uppercase' }}>Meetings</h2>
         </div>
         {createError && (
           <div style={{ color: 'var(--color-danger)', fontSize: '0.75rem', padding: '0 16px 8px' }}>
