@@ -5,10 +5,9 @@
 Lumi is a self-hosted meeting intelligence application. It transcribes recorded meetings, identifies speakers, indexes the content for semantic search, and answers questions about meetings using retrieval-augmented generation over a local LLM.
 
 <div align="center">
-  <img src="docs/assets/screenshot-1.jpg" alt="Lumi Welcome Screen" width="800"/>
-  <br/>
-  <br/>
-  <video src="docs/assets/lumi.mp4" width="800" controls></video>
+  <a href="https://github.com/YashBhardwaj21/Lumi/releases/download/Lumi-initial_release/lumi.mp4">
+    <img src="docs/assets/screenshot-1.jpg" alt="Watch Lumi Demo" width="800"/>
+  </a>
 </div>
 
 
