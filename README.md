@@ -8,10 +8,7 @@ Lumi is a self-hosted meeting intelligence application. It transcribes recorded 
   <img src="docs/assets/screenshot-1.jpg" alt="Lumi Welcome Screen" width="800"/>
   <br/>
   <br/>
-  <img src="docs/assets/screenshot-2.png" alt="Lumi Chat View" width="800"/>
-  <br/>
-  <br/>
-  <img src="docs/assets/screenshot-3.png" alt="Lumi Transcript View" width="800"/>
+  <video src="docs/assets/lumi.mp4" width="800" controls></video>
 </div>
 
 
